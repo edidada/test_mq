@@ -1,0 +1,75 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# CMake
+cpp/build/
+cpp/cmake_install.cmake
+cpp/Makefile
+cpp/CMakeCache.txt
+cpp/CMakeFiles/
+cpp/compile_commands.json
+cpp/*.cmake
+cpp/Debug/
+cpp/Release/
+cpp/x64/
+
+# Compiled files
+*.class
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+*.out
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.bak
+*.temp
+*.swp
+
+# RocketMQ data (optional - if you want to exclude test data)
+# rocketmq_data/
+# /opt/rocketmq/data/
+
+# Java
+*.jar
+*.war
+*.ear
+
+# Test output
+test-output/
+surefire-reports/

@@ -161,3 +161,115 @@ bash rocketmq_stop.sh
 # 查看消息堆积情况
 ./bin/mqadmin statsAll -n 127.0.0.1:9876
 ```
+
+
+# 1. 启动 RocketMQ
+wsl
+cd /opt/rocketmq
+bash rocketmq_start.sh
+
+# 2. 创建 Topic
+cd /opt/rocketmq/rocketmq-all-4.9.7-bin-release
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+./bin/mqadmin updateTopic -n 127.0.0.1:9876 -c DefaultCluster -t TestTopic
+
+# 3. 编译并运行生产者（发送 1000 条消息）
+cd /mnt/d/develops/git/github/cpp/test_mq/java
+mvn clean compile
+mvn exec:java -Dexec.mainClass="com.testmq.MQProducer"
+
+已发送 100 条消息
+已发送 200 条消息
+已发送 300 条消息
+已发送 400 条消息
+已发送 500 条消息
+已发送 600 条消息
+已发送 700 条消息
+已发送 800 条消息
+已发送 900 条消息
+已发送 1000 条消息
+
+# 4. 另开终端查看积压
+wsl
+cd /opt/rocketmq/rocketmq-all-4.9.7-bin-release
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+./bin/mqadmin statsAll -n 127.0.0.1:9876
+
+./bin/mqadmin statsAll -n 127.0.0.1:9876
+#Topic                                                            #Consumer Group                                                  #Accumulation      #InTPS     #OutTPS   #InMsg24Hour  #OutMsg24Hour
+TestTopic                                                                                                                                     0       48.23                       1000    NO_CONSUMER
+SCHEDULE_TOPIC_XXXX                                                                                                                           0        0.00                          0    NO_CONSUMER
+RMQ_SYS_TRANS_HALF_TOPIC                                                                                                                      0        0.00                          0    NO_CONSUMER
+DefaultCluster_REPLY_TOPIC                                                                                                                    0        0.00                          0    NO_CONSUMER
+BenchmarkTest                                                                                                                                 0        0.00                          0    NO_CONSUMER
+OFFSET_MOVED_EVENT                                                                                                                            0        0.00                          0    NO_CONSUMER
+TBW102                                                                                                                                        0        0.00                          0    NO_CONSUMER
+SELF_TEST_TOPIC                                                                                                                               0        0.00                          0    NO_CONSUMER
+LAPTOP-wdidada                                                                                                                                0        0.00                          0    NO_CONSUMER
+DefaultCluster                                                                                                                                0        0.00                          0    NO_CONSUMER
+wdidada@LAPTOP-wdidada:/opt/rocketmq/rocketmq-all-4.9.7-bin-release$
+
+
+
+./bin/mqadmin topicStatus -n 127.0.0.1:9876 -t TestTopic
+
+#Broker Name                      #QID  #Min Offset           #Max Offset             #Last Updated
+LAPTOP-wdidada                    0     0                     125                     2026-04-14 19:39:26,727
+LAPTOP-wdidada                    1     0                     125                     2026-04-14 19:39:26,724
+LAPTOP-wdidada                    2     0                     125                     2026-04-14 19:39:26,724
+LAPTOP-wdidada                    3     0                     125                     2026-04-14 19:39:26,725
+LAPTOP-wdidada                    4     0                     125                     2026-04-14 19:39:26,725
+LAPTOP-wdidada                    5     0                     125                     2026-04-14 19:39:26,726
+LAPTOP-wdidada                    6     0                     125                     2026-04-14 19:39:26,726
+LAPTOP-wdidada                    7     0                     125                     2026-04-14 19:39:26,727
+
+
+ ./bin/mqadmin brokerStatus -n 127.0.0.1:9876 -b 127.0.0.1:10911
+EndTransactionQueueSize         : 0
+EndTransactionThreadPoolQueueCapacity: 100000
+bootTimestamp                   : 1776166423407
+brokerVersion                   : 407
+brokerVersionDesc               : V4_9_7
+commitLogDirCapacity            : Total : 1006.9 GiB, Free : 880.0 GiB.
+commitLogDiskRatio              : 0.08
+commitLogDiskRatio_/home/wdidada/store/commitlog: 0.08
+commitLogMaxOffset              : 191893
+commitLogMinOffset              : 0
+consumeQueueDiskRatio           : 0.08
+dispatchBehindBytes             : 0
+dispatchMaxBuffer               : 0
+earliestMessageTimeStamp        : -1
+getFoundTps                     : 0.0 0.0 0.0
+getMessageEntireTimeMax         : 0
+getMissTps                      : 0.19998000199980004 0.03247122237916646 0.03258841644737378
+getTotalTps                     : 0.19998000199980004 0.03247122237916646 0.03258841644737378
+getTransferedTps                : 0.0 0.0 0.0
+msgGetTotalTodayMorning         : 0
+msgGetTotalTodayNow             : 0
+msgGetTotalYesterdayMorning     : 0
+msgPutTotalTodayMorning         : 0
+msgPutTotalTodayNow             : 1000
+msgPutTotalYesterdayMorning     : 0
+pageCacheLockTimeMills          : 0
+pullThreadPoolQueueCapacity     : 100000
+pullThreadPoolQueueHeadWaitTimeMills: 0
+pullThreadPoolQueueSize         : 0
+putLatency99                    : 0.00
+putLatency999                   : 0.00
+putMessageAverageSize           : 191.893
+putMessageDistributeTime        : [<=0ms]:0 [0~10ms]:0 [10~50ms]:0 [50~100ms]:0 [100~200ms]:0 [200~500ms]:0 [500ms~1s]:0 [1~2s]:0 [2~3s]:0 [3~4s]:0 [4~5s]:0 [5~10s]:0 [10s~]:0
+putMessageEntireTimeMax         : 11
+putMessageFailedTimes           : 0
+putMessageSizeTotal             : 191893
+putMessageTimesTotal            : 1000
+putTps                          : 0.0 0.0 1.629420822368689
+queryThreadPoolQueueCapacity    : 20000
+queryThreadPoolQueueHeadWaitTimeMills: 0
+queryThreadPoolQueueSize        : 0
+remainHowManyDataToFlush        : 0 B
+remainTransientStoreBufferNumbs : 2147483647
+runtime                         : [ 0 days, 0 hours, 12 minutes, 20 seconds ]
+sendThreadPoolQueueCapacity     : 10000
+sendThreadPoolQueueHeadWaitTimeMills: 0
+sendThreadPoolQueueSize         : 0
+startAcceptSendRequestTimeStamp : 0
