@@ -4,6 +4,35 @@
 
 在消息队列（MQ）系统中，当消息积压、MQ服务挂掉或MySQL数据库挂掉时，需要有完善的处理策略。
 
+## 环境说明
+
+本项目使用 **RocketMQ 4.9.7** 在 WSL Ubuntu 24.04 上进行实际操作演示。
+
+## 快速开始
+
+### 启动 RocketMQ
+
+进入 WSL Ubuntu 环境，执行以下命令：
+
+```bash
+# 进入项目目录
+cd /opt/rocketmq
+
+# 启动 RocketMQ
+bash rocketmq_start.sh
+
+# 检查状态
+bash rocketmq_status.sh
+
+# 停止 RocketMQ
+bash rocketmq_stop.sh
+```
+
+### 连接信息
+
+- **NameServer**: 127.0.0.1:9876
+- **Broker**: 127.0.0.1:10911
+
 ## 核心问题场景
 
 ### 1. MQ消息积压
@@ -11,20 +40,61 @@
 - 消费速度跟不上生产速度
 - 可能导致内存溢出或服务响应变慢
 
+**模拟方式**：
+1. 只启动生产者，不启动消费者
+2. 发送大量消息到 Topic
+3. 观察消息积压情况
+
+**解决方案**：
+- 增加消费者数量
+- 优化消费逻辑，提高消费速度
+- 临时降级，丢弃非关键消息
+- 使用死信队列处理失败消息
+
 ### 2. MQ服务挂掉
 - MQ服务不可用
 - 消息无法正常发送或消费
 - 需要快速恢复和容错处理
+
+**模拟方式**：
+1. 停止 Broker 或 NameServer
+2. 尝试发送/消费消息
+3. 观察应用报错情况
+
+**解决方案**：
+- 快速重启 MQ 服务
+- 生产者切换到本地存储
+- 待 MQ 恢复后重发消息
 
 ### 3. MySQL挂掉
 - 数据库服务中断
 - 消费者无法持久化数据
 - 需要降级或重试策略
 
+**模拟方式**：
+1. 停止 MySQL 服务
+2. 消费者尝试写入数据库
+3. 观察消费失败和重试
+
+**解决方案**：
+- 消费失败自动重试
+- 使用本地缓存暂存数据
+- MySQL 恢复后批量重写
+- 降级为只记录日志
+
 ### 4. 双双挂掉
 - MQ和MySQL同时故障
 - 最严重的场景
 - 需要全面的容灾方案
+
+**模拟方式**：
+1. 同时停止 MQ 和 MySQL
+2. 观察整体系统表现
+
+**解决方案**：
+- 全面降级，本地存储所有数据
+- 定期检查服务状态
+- 服务恢复后数据同步
 
 ## 处理策略
 
@@ -50,9 +120,20 @@
 ## 代码示例
 
 本项目包含以下代码示例：
+
+### C++ 模拟代码
 - `consumer.cpp` - 消费者示例代码
 - `producer.cpp` - 生产者示例代码
 - `handler.cpp` - 故障处理逻辑
+
+### Java 实际测试代码（配合 RocketMQ 使用）
+- `MQProducer.java` - 消息生产者
+- `MQConsumer.java` - 消息消费者
+
+### 管理脚本
+- `rocketmq_start.sh` - 启动 RocketMQ
+- `rocketmq_stop.sh` - 停止 RocketMQ
+- `rocketmq_status.sh` - 检查服务状态
 
 ## 最佳实践
 
@@ -61,3 +142,22 @@
 3. **自动恢复**：尽可能使用自动恢复机制
 4. **人工介入**：设置人工确认和介入机制
 5. **定期演练**：定期进行故障恢复演练
+
+## RocketMQ 常用管理命令
+
+```bash
+# 查看集群信息
+./bin/mqadmin clusterList -n 127.0.0.1:9876
+
+# 创建 Topic
+./bin/mqadmin updateTopic -n 127.0.0.1:9876 -c DefaultCluster -t TestTopic
+
+# 查看 Topic 状态
+./bin/mqadmin topicStatus -n 127.0.0.1:9876 -t TestTopic
+
+# 查看 Broker 状态
+./bin/mqadmin brokerStatus -n 127.0.0.1:9876 -b 127.0.0.1:10911
+
+# 查看消息堆积情况
+./bin/mqadmin statsAll -n 127.0.0.1:9876
+```

@@ -1,54 +1,142 @@
-# 编译和运行指南
+# 项目构建说明
 
-## 编译命令
+## 目录结构
 
-```bash
-# 编译消费者示例
-g++ -std=c++11 -pthread -o consumer consumer.cpp
-
-# 编译生产者示例
-g++ -std=c++11 -pthread -o producer producer.cpp
-
-# 编译故障处理器示例
-g++ -std=c++11 -pthread -o handler handler.cpp
+```
+test_mq/
+├── README.md
+├── 操作指南.md
+├── BUILD.md
+├──
+├── java/                    # Maven Java 项目
+│   ├── pom.xml
+│   └── src/
+│       └── main/
+│           └── java/
+│               └── com/
+│                   └── testmq/
+│                       ├── MQProducer.java
+│                       └── MQConsumer.java
+│
+└── cpp/                     # CMake C++ 项目
+    ├── CMakeLists.txt
+    └── src/
+        ├── consumer.cpp
+        ├── producer.cpp
+        └── handler.cpp
 ```
 
-## 运行示例
+## Java 项目构建 (Maven)
+
+### 前置要求
+
+- JDK 8 或更高版本
+- Maven 3.6 或更高版本
+
+### 编译
+
+```bash
+cd java
+mvn clean compile
+```
+
+### 打包
+
+```bash
+mvn clean package
+```
+
+### 运行
+
+运行生产者：
+```bash
+mvn exec:java -Dexec.mainClass="com.testmq.MQProducer"
+```
+
+运行消费者：
+```bash
+mvn exec:java -Dexec.mainClass="com.testmq.MQConsumer"
+```
+
+## C++ 项目构建 (CMake)
+
+### 前置要求
+
+- C++11 兼容的编译器 (g++ 4.8+, clang 3.3+, MSVC 2015+)
+- CMake 3.10 或更高版本
+
+### Windows 编译
+
+使用 PowerShell：
+
+```bash
+cd cpp
+mkdir build
+cd build
+cmake ..
+cmake --build . --config Release
+```
+
+或者使用 MinGW：
+
+```bash
+cd cpp
+mkdir build
+cd build
+cmake -G "MinGW Makefiles" ..
+mingw32-make
+```
+
+### Linux/WSL 编译
+
+```bash
+cd cpp
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+```
+
+### 运行可执行文件
+
+编译成功后，可执行文件位于 `build/` 目录下：
 
 ```bash
 # 运行消费者
-./consumer
+./build/consumer
 
 # 运行生产者
-./producer
+./build/producer
 
 # 运行故障处理器
-./handler
+./build/handler
 ```
 
-## 代码说明
+## 快速开始
 
-### consumer.cpp
-- 模拟MQ消息消费者
-- 实现了消息积压处理
-- 实现了MySQL故障处理
-- 实现了重试机制和死信队列
+### Java 快速测试
 
-### producer.cpp
-- 模拟MQ消息生产者
-- 实现了MQ故障处理
-- 实现了本地消息存储
-- 实现了重连机制
+```bash
+cd java
 
-### handler.cpp
-- 故障处理核心逻辑
-- MQ故障处理流程
-- MySQL故障处理流程
-- 双故障处理流程
-- 监控和统计功能
+# 编译
+mvn clean install
 
-## 运行环境
+# 启动消费者 (在一个终端)
+mvn exec:java -Dexec.mainClass="com.testmq.MQConsumer"
 
-- C++11 或更高版本
-- 支持多线程的编译器
-- 无外部依赖
+# 启动生产者 (在另一个终端)
+mvn exec:java -Dexec.mainClass="com.testmq.MQProducer"
+```
+
+### C++ 快速测试
+
+```bash
+cd cpp
+mkdir build && cd build
+cmake .. && make
+
+# 运行各个示例
+./consumer
+./producer
+./handler
+```
