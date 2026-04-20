@@ -1,21 +1,17 @@
 # This workflow will build a package using Maven and then publish it to GitHub packages when a release is created
 # For more information see: https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md#apache-maven-with-a-settings-path
 
-name: Maven Package
+name: Java CI with Maven
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "rabbitmq" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "rabbitmq" ]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
 
     steps:
     - uses: actions/checkout@v4
@@ -30,4 +26,7 @@ jobs:
     - name: Build with Maven
       run: |
         cd java
+        cd java  
+        mvn -B package --file pom.xml
+        cd ../rabbitmq/java
         mvn -B package --file pom.xml

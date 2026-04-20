@@ -33,6 +33,31 @@ cpp/x64/
 *.exe
 *.out
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
 # IDE
 .idea/
 *.iml
@@ -46,9 +71,9 @@ cpp/x64/
 *.swo
 *~
 
-# Logs
-*.log
-logs/
+# Logs - 根据 Java 开发规范，日志文件不被 git 忽略
+# *.log
+# logs/
 
 # OS
 .DS_Store
@@ -75,3 +100,10 @@ test-output/
 surefire-reports/
 
 build
+
+# Local RabbitMQ resilience demo outputs
+rabbitmq/python/__pycache__/
+rabbitmq/python/runtime/
+rabbitmq/java/out/
+rabbitmq/java/runtime/
+rabbitmq/cpp/runtime/

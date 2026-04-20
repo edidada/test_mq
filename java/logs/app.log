@@ -1,0 +1,10 @@
+2026-04-20 20:25:13.818 [main] INFO  com.testmq.ConfigLoader - Configuration loaded successfully from application.properties
+2026-04-20 20:25:13.820 [main] INFO  com.testmq.ConfigTest - === 测试配置加载 ===
+2026-04-20 20:25:13.826 [main] INFO  com.testmq.ConfigTest - RocketMQ NameServer 地址：127.0.0.1:9876
+2026-04-20 20:25:13.826 [main] INFO  com.testmq.ConfigTest - 生产者组：test_producer_group
+2026-04-20 20:25:13.826 [main] INFO  com.testmq.ConfigTest - 消费者组：test_consumer_group
+2026-04-20 20:25:13.826 [main] INFO  com.testmq.ConfigTest - 主题：TestTopic
+2026-04-20 20:25:13.826 [main] INFO  com.testmq.ConfigTest - 消息数量：1000
+2026-04-20 20:25:13.826 [main] INFO  com.testmq.ConfigTest - 打印间隔：100
+2026-04-20 20:25:13.827 [main] INFO  com.testmq.ConfigTest - 消息前缀：Hello RocketMQ
+2026-04-20 20:25:13.828 [main] INFO  com.testmq.ConfigTest - === 配置加载成功 ===

@@ -1,0 +1,11 @@
+msg-001|normal|这是第 1 条消息的内容
+msg-002|normal|这是第 2 条消息的内容
+msg-003|critical|这是第 3 条消息的内容
+msg-004|normal|这是第 4 条消息的内容
+msg-005|normal|这是第 5 条消息的内容
+msg-006|critical|这是第 6 条消息（MQ 宕机时）
+msg-007|critical|这是第 7 条消息（MQ 宕机时）
+msg-008|critical|这是第 8 条消息（MQ 宕机时）
+new-msg-001|normal|MySQL 宕机时的新消息 1
+new-msg-002|normal|MySQL 宕机时的新消息 2
+new-msg-003|normal|MySQL 宕机时的新消息 3

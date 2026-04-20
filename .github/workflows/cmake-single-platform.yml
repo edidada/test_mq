@@ -5,12 +5,12 @@ name: C++ RabbitMQ Client CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "rabbitmq" ]
     paths:
       - 'rabbitmq/cpp/**'
       - '.github/workflows/cmake-single-platform.yml'
   pull_request:
-    branches: [ "main" ]
+    branches: [ "rabbitmq" ]
     paths:
       - 'rabbitmq/cpp/**'
       - '.github/workflows/cmake-single-platform.yml'
