@@ -1,6 +1,8 @@
 package com.testmq.rabbitmq;
 
 import com.rabbitmq.client.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeoutException;
@@ -9,6 +11,7 @@ import java.util.concurrent.TimeoutException;
  * RabbitMQ 消费者示例
  */
 public class TrueConsumer {
+    private static final Logger logger = LogManager.getLogger(TrueConsumer.class);
     private static final String QUEUE_NAME = "test_queue";
     private ConnectionFactory factory;
     private Connection connection;
@@ -25,11 +28,11 @@ public class TrueConsumer {
     }
 
     public void connect() throws Exception {
-        System.out.println("[consumer] connecting to RabbitMQ...");
+        logger.info("connecting to RabbitMQ...");
         connection = factory.newConnection();
         channel = connection.createChannel();
         channel.queueDeclare(QUEUE_NAME, true, false, false, null);
-        System.out.println("[consumer] connected successfully");
+        logger.info("connected successfully");
     }
 
     public void startConsuming(int expectedMessages) throws Exception {
@@ -37,7 +40,7 @@ public class TrueConsumer {
         
         DeliverCallback deliverCallback = (consumerTag, delivery) -> {
             String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
-            System.out.println("[consumer] received: " + message);
+            logger.info("received: {}", message);
             
             // 模拟业务处理
             processMessage(message);
@@ -49,12 +52,12 @@ public class TrueConsumer {
         };
 
         channel.basicConsume(QUEUE_NAME, false, deliverCallback, consumerTag -> {
-            System.out.println("[consumer] consumption cancelled");
+            logger.info("[consumer] consumption cancelled");
         });
 
-        System.out.println("[consumer] waiting for messages...");
+        logger.info("waiting for messages...");
         latch.await(); // 等待所有消息处理完成
-        System.out.println("[consumer] processed " + messageCount + " messages");
+        logger.info("processed {} messages", messageCount);
     }
 
     private void processMessage(String message) {
@@ -64,7 +67,7 @@ public class TrueConsumer {
             String messageId = parts[0];
             String priority = parts[1];
             String body = parts[2];
-            System.out.println("  [processing] " + messageId + " - priority: " + priority + ", body: " + body);
+            logger.debug("  [processing] {} - priority: {}, body: {}", messageId, priority, body);
         }
     }
 
@@ -72,9 +75,9 @@ public class TrueConsumer {
         try {
             if (channel != null && channel.isOpen()) channel.close();
             if (connection != null && connection.isOpen()) connection.close();
-            System.out.println("[consumer] connection closed");
+            logger.info("connection closed");
         } catch (Exception e) {
-            System.err.println("[consumer] error closing connection: " + e.getMessage());
+            logger.error("error closing connection: {}", e.getMessage(), e);
         }
     }
 
@@ -83,10 +86,9 @@ public class TrueConsumer {
         try {
             consumer.connect();
             consumer.startConsuming(10); // 期望接收 10 条消息
-            System.out.println("[consumer] done!");
+            logger.info("done!");
         } catch (Exception e) {
-            System.err.println("[consumer] error: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("error: {}", e.getMessage(), e);
         } finally {
             consumer.close();
         }

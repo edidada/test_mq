@@ -26,7 +26,7 @@ mvn直接运行，不要在当前目录添加.m2文件下载jar包
 6. Redis缓存：过期时间、缓存击穿/穿透/雪崩简单处理
 7. RabbitMQ：消息可靠投递、ACK确认、死信队列
 8.maven组织，用系统默认的maven配置文件，jar包不用保存在当前项目的.m2目录下
-9.log42库打印日志到文件，git不忽略.log文件
+9.log42库打印日志到文件，日志文件打印线程编号，git不忽略.log文件
 10.参数文件使用properties格式，git不忽略.properties文件，参数文件中不包含敏感信息。
         InputStream is1 = Test.class.getResourceAsStream("/application.properties");
         Properties props = new Properties();

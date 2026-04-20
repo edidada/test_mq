@@ -1,6 +1,8 @@
 package com.testmq.rabbitmq;
 
 import com.rabbitmq.client.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeoutException;
 
@@ -8,6 +10,7 @@ import java.util.concurrent.TimeoutException;
  * RabbitMQ 生产者示例
  */
 public class TrueProducer {
+    private static final Logger logger = LogManager.getLogger(TrueProducer.class);
     private static final String QUEUE_NAME = "test_queue";
     private ConnectionFactory factory;
     private Connection connection;
@@ -22,11 +25,11 @@ public class TrueProducer {
     }
 
     public void connect() throws Exception {
-        System.out.println("[producer] connecting to RabbitMQ...");
+        logger.info("connecting to RabbitMQ...");
         connection = factory.newConnection();
         channel = connection.createChannel();
         channel.queueDeclare(QUEUE_NAME, true, false, false, null);
-        System.out.println("[producer] connected successfully");
+        logger.info("connected successfully");
     }
 
     public void sendMessage(String messageId, String priority, String body) throws Exception {
@@ -43,11 +46,11 @@ public class TrueProducer {
         channel.basicPublish("", QUEUE_NAME, propsBuilder.build(), 
                             message.getBytes(StandardCharsets.UTF_8));
         
-        System.out.println("[producer] sent: " + messageId + " (" + priority + ")");
+        logger.info("sent: {} ({})", messageId, priority);
     }
 
     public void sendBatch(int count, int criticalEvery) throws Exception {
-        System.out.println("[producer] sending batch of " + count + " messages");
+        logger.info("sending batch of {} messages", count);
         for (int i = 1; i <= count; i++) {
             String priority = (i % criticalEvery == 0) ? "critical" : "normal";
             String messageId = String.format("msg-%03d", i);
@@ -60,9 +63,9 @@ public class TrueProducer {
         try {
             if (channel != null && channel.isOpen()) channel.close();
             if (connection != null && connection.isOpen()) connection.close();
-            System.out.println("[producer] connection closed");
+            logger.info("connection closed");
         } catch (Exception e) {
-            System.err.println("[producer] error closing connection: " + e.getMessage());
+            logger.error("error closing connection: {}", e.getMessage(), e);
         }
     }
 
@@ -71,11 +74,10 @@ public class TrueProducer {
         try {
             producer.connect();
             producer.sendBatch(10, 3); // 发送 10 条消息，每 3 条中有一条 critical
-            System.out.println("[producer] done!");
+            logger.info("done!");
             Thread.sleep(1000);
         } catch (Exception e) {
-            System.err.println("[producer] error: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("error: {}", e.getMessage(), e);
         } finally {
             producer.close();
         }
