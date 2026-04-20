@@ -24,7 +24,6 @@ bash rocketmq_stop.sh
 ```
 
 ### 连接信息
-
 - NameServer: 127.0.0.1:9876
 - Broker: 127.0.0.1:10911
 
