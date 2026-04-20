@@ -1,0 +1,91 @@
+# RabbitMQ C++ Client CI Workflow
+# Tests C++ producer and consumer with RabbitMQ using docker-compose
+
+name: C++ RabbitMQ Client CI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'rabbitmq/cpp/**'
+      - '.github/workflows/cmake-single-platform.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'rabbitmq/cpp/**'
+      - '.github/workflows/cmake-single-platform.yml'
+
+env:
+  BUILD_TYPE: Release
+  RABBITMQ_USERNAME: app_user
+  RABBITMQ_PASSWORD: 123456
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    
+    services:
+      rabbitmq:
+        image: rabbitmq:3.12-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+        env:
+          RABBITMQ_DEFAULT_USER: ${{ env.RABBITMQ_USERNAME }}
+          RABBITMQ_DEFAULT_PASS: ${{ env.RABBITMQ_PASSWORD }}
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y librabbitmq-dev pkg-config
+
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/rabbitmq/cpp/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+      working-directory: ${{github.workspace}}
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/rabbitmq/cpp/build --config ${{env.BUILD_TYPE}}
+      working-directory: ${{github.workspace}}
+
+    - name: Wait for RabbitMQ to be ready
+      run: |
+        echo "Waiting for RabbitMQ to be ready..."
+        for i in {1..30}; do
+          if docker exec ${{ job.services.rabbitmq.id }} rabbitmq-diagnostics -q ping; then
+            echo "RabbitMQ is ready!"
+            break
+          fi
+          echo "Waiting... ($i/30)"
+          sleep 2
+        done
+
+    - name: Setup RabbitMQ permissions
+      run: |
+        docker exec ${{ job.services.rabbitmq.id }} rabbitmqctl set_permissions -p / ${{ env.RABBITMQ_USERNAME }} ".*" ".*" ".*"
+
+    - name: Test Producer
+      run: |
+        echo "Running C++ producer..."
+        ${{github.workspace}}/rabbitmq/cpp/build/true_producer
+      working-directory: ${{github.workspace}}
+
+    - name: Test Consumer
+      run: |
+        echo "Running C++ consumer..."
+        timeout 30 ${{github.workspace}}/rabbitmq/cpp/build/true_consumer || true
+      working-directory: ${{github.workspace}}
+
+    - name: Verify RabbitMQ Management API
+      run: |
+        echo "Checking RabbitMQ management API..."
+        curl -u ${{ env.RABBITMQ_USERNAME }}:${{ env.RABBITMQ_PASSWORD }} \
+          http://localhost:15672/api/queues/%2F/test_queue \
+          | jq -r '.messages'
