@@ -24,7 +24,7 @@ class Message:
 
 class TrueProducer:
     def __init__(self, host: str = "localhost", port: int = 5672, 
-                 username: str = "guest", password: str = "guest") -> None:
+                 username: str = "app_user", password: str = "123456") -> None:
         self.host = host
         self.port = port
         self.username = username
@@ -117,7 +117,7 @@ def build_messages(prefix: str, count: int, critical_every: int = 0) -> List[Mes
 
 if __name__ == "__main__":
     # 示例：发送消息
-    producer = TrueProducer()
+    producer = TrueProducer("localhost", 5672, "app_user", "123456")
     try:
         producer.connect()
         

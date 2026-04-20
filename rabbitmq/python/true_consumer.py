@@ -8,7 +8,7 @@ from typing import Optional, Callable
 
 class TrueConsumer:
     def __init__(self, host: str = "localhost", port: int = 5672,
-                 username: str = "guest", password: str = "guest") -> None:
+                 username: str = "app_user", password: str = "123456") -> None:
         self.host = host
         self.port = port
         self.username = username
@@ -121,7 +121,7 @@ class TrueConsumer:
 
 if __name__ == "__main__":
     # 示例：消费消息
-    consumer = TrueConsumer()
+    consumer = TrueConsumer("localhost", 5672, "app_user", "123456")
     try:
         consumer.connect()
         consumer.start_consuming(expected_messages=10)

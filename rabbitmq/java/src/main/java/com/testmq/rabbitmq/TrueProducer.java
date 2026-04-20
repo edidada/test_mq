@@ -17,8 +17,8 @@ public class TrueProducer {
         factory = new ConnectionFactory();
         factory.setHost("localhost");
         factory.setPort(5672);
-        factory.setUsername("guest");
-        factory.setPassword("guest");
+        factory.setUsername("app_user");
+        factory.setPassword("123456");
     }
 
     public void connect() throws Exception {
