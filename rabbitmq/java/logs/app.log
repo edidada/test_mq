@@ -362,3 +362,20 @@ Caused by: com.rabbitmq.client.ShutdownSignalException: clean channel shutdown; 
 2026-04-20 20:32:20.398 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-010 (normal)
 2026-04-20 20:32:20.398 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - done!
 2026-04-20 20:32:21.405 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - connection closed
+2026-04-20 20:32:43.753 [main] [tid:1] INFO  com.testmq.rabbitmq.ConfigLoader - Configuration loaded successfully from application.properties
+2026-04-20 20:32:43.761 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - Initializing producer with config: host=localhost, port=5672, queue=test_queue, batchSize=10
+2026-04-20 20:32:43.787 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - connecting to RabbitMQ...
+2026-04-20 20:32:43.896 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - connected successfully
+2026-04-20 20:32:43.896 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - sending batch of 10 messages
+2026-04-20 20:32:43.898 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-001 (normal)
+2026-04-20 20:32:43.898 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-002 (normal)
+2026-04-20 20:32:43.899 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-003 (critical)
+2026-04-20 20:32:43.899 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-004 (normal)
+2026-04-20 20:32:43.899 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-005 (normal)
+2026-04-20 20:32:43.899 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-006 (critical)
+2026-04-20 20:32:43.899 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-007 (normal)
+2026-04-20 20:32:43.899 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-008 (normal)
+2026-04-20 20:32:43.901 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-009 (critical)
+2026-04-20 20:32:43.901 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-010 (normal)
+2026-04-20 20:32:43.901 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - done!
+2026-04-20 20:32:44.910 [main] [tid:1] INFO  com.testmq.rabbitmq.TrueProducer - connection closed
