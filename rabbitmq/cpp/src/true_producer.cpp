@@ -101,8 +101,9 @@ public:
         amqp_socket_open(socket, host.c_str(), port);
         
         // 登录
-        die_on_error(amqp_login(conn, host.c_str(), port, 0, 131072, 0, 
-                                AMQP_SASL_METHOD_PLAIN, username.c_str(), password.c_str()).reply_type,
+        die_on_error(amqp_login(conn, host.c_str(), port, 0, 131072, 
+                                AMQP_SASL_METHOD_PLAIN, 
+                                username.c_str(), password.c_str()).reply_type,
                      "Login");
         
         // 打开通道

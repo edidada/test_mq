@@ -99,8 +99,9 @@ public:
         amqp_socket_open(socket, host.c_str(), port);
         
         // 登录
-        die_on_error(amqp_login(conn, host.c_str(), port, 0, 131072, 0, 
-                                AMQP_SASL_METHOD_PLAIN, username.c_str(), password.c_str()).reply_type,
+        die_on_error(amqp_login(conn, host.c_str(), port, 0, 131072, 
+                                AMQP_SASL_METHOD_PLAIN, 
+                                username.c_str(), password.c_str()).reply_type,
                      "Login");
         
         // 打开通道
@@ -117,7 +118,7 @@ public:
         die_on_error(amqp_get_rpc_reply(conn).reply_type, "Declaring queue");
         
         // 设置 QoS - 每次只处理一条消息
-        amqp_basic_qos(conn, channel, 1);
+        amqp_basic_qos(conn, channel, 0, 1, 0);
         die_on_error(amqp_get_rpc_reply(conn).reply_type, "Setting QoS");
         
         std::cout << "[consumer] connected successfully" << std::endl;
@@ -132,7 +133,8 @@ public:
                           amqp_empty_bytes,  // consumer_tag
                           0,                 // no_local
                           0,                 // no_ack (false = manual ACK)
-                          0);                // exclusive
+                          0,                 // exclusive
+                          amqp_empty_table); // arguments
         die_on_error(amqp_get_rpc_reply(conn).reply_type, "Consuming");
         
         while (true) {
