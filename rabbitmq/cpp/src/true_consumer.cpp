@@ -79,7 +79,7 @@ public:
         : host(h), port(p), username(u), password(pw), queue_name("test_queue"),
           message_count(0), persisted(0) {
         conn = nullptr;
-        channel = 0;
+        channel = 1;  // 使用 channel 1
     }
     
     void connect() {
@@ -96,26 +96,65 @@ public:
         }
         
         // 连接到服务器
-        amqp_socket_open(socket, host.c_str(), port);
+        int status = amqp_socket_open(socket, host.c_str(), port);
+        if (status != AMQP_STATUS_OK) {
+            std::cerr << "[consumer] error: failed to open socket: " << status << std::endl;
+            exit(1);
+        }
         
         // 登录
-        die_on_error(amqp_login(conn, host.c_str(), port, 0, 131072, 
-                                AMQP_SASL_METHOD_PLAIN, 
-                                username.c_str(), password.c_str()).reply_type,
-                     "Login");
+        std::cout << "[consumer] logging in as " << username << "..." << std::endl;
+        amqp_rpc_reply_t ret = amqp_login_with_properties(
+            conn,
+            "/",  // vhost
+            0,    // channel_max
+            AMQP_DEFAULT_FRAME_SIZE,
+            AMQP_DEFAULT_HEARTBEAT,
+            NULL, // properties
+            AMQP_SASL_METHOD_PLAIN,
+            username.c_str(),
+            password.c_str()
+        );
+        
+        if (ret.reply_type != AMQP_RESPONSE_NORMAL) {
+            std::cerr << "[consumer] error: Login failed!" << std::endl;
+            std::cerr << "  Reply type: " << ret.reply_type << std::endl;
+            if (ret.reply_type == AMQP_RESPONSE_LIBRARY_EXCEPTION) {
+                std::cerr << "  Library error: " << ret.library_error << std::endl;
+            } else if (ret.reply_type == AMQP_RESPONSE_SERVER_EXCEPTION) {
+                std::cerr << "  Server exception" << std::endl;
+            }
+            exit(1);
+        }
+        std::cout << "[consumer] logged in successfully" << std::endl;
         
         // 打开通道
-        amqp_channel_open(conn, channel);
-        die_on_error(amqp_get_rpc_reply(conn).reply_type, "Opening channel");
+        std::cout << "[consumer] opening channel..." << std::endl;
+        amqp_channel_open_ok_t *channel_ret = amqp_channel_open(conn, channel);
+        if (!channel_ret) {
+            amqp_rpc_reply_t ret = amqp_get_rpc_reply(conn);
+            std::cerr << "[consumer] error: Opening channel: RPC error" << std::endl;
+            std::cerr << "  Reply type: " << ret.reply_type << std::endl;
+            if (ret.reply_type == AMQP_RESPONSE_SERVER_EXCEPTION) {
+                std::cerr << "  Server exception" << std::endl;
+            }
+            exit(1);
+        }
+        std::cout << "[consumer] channel opened successfully" << std::endl;
         
         // 声明队列（持久化）
-        amqp_queue_declare(conn, channel, to_bytes(queue_name),
-                          true,    // durable
-                          false,   // passive
-                          false,   // exclusive
-                          false,   // auto_delete
-                          amqp_empty_table);
-        die_on_error(amqp_get_rpc_reply(conn).reply_type, "Declaring queue");
+        amqp_queue_declare_ok_t *queue_ret = amqp_queue_declare(
+            conn, channel, to_bytes(queue_name),
+            0,     // passive
+            true,  // durable
+            false, // exclusive
+            false, // auto_delete
+            amqp_empty_table
+        );
+        if (!queue_ret) {
+            std::cerr << "[consumer] error: failed to declare queue" << std::endl;
+            exit(1);
+        }
         
         // 设置 QoS - 每次只处理一条消息
         amqp_basic_qos(conn, channel, 0, 1, 0);
@@ -200,7 +239,7 @@ public:
 };
 
 int main(int argc, char* argv[]) {
-    TrueConsumer consumer;
+    TrueConsumer consumer("localhost", 5672, "admin", "5Edidada");
     
     try {
         consumer.connect();
