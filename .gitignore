@@ -75,3 +75,10 @@ test-output/
 surefire-reports/
 
 build
+
+# Local RabbitMQ resilience demo outputs
+rabbitmq/python/__pycache__/
+rabbitmq/python/runtime/
+rabbitmq/java/out/
+rabbitmq/java/runtime/
+rabbitmq/cpp/runtime/

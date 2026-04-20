@@ -1,4 +1,8 @@
 # RabbitMQ消息积压与故障处理指南
+新建子文件夹rabbitmq
+rabbitmq/java java语言的消息生产者，消费者
+rabbitmq/python python语言的消息生产者，消费者
+rabbitmq/cpp cpp语言的消息生产者，消费者
 
 ## 问题背景
 在消息队列（MQ）系统中，当消息积压、MQ服务挂掉或MySQL数据库挂掉时，需要有完善的处理策略。
