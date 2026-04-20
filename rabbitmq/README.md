@@ -1,4 +1,16 @@
 # RabbitMQ 故障处理实践
+✔ 开发 / 测试环境：用 admin
+✔ 生产环境：必须新建专用用户（app_user）
+
+权限太大，代码里用有安全风险
+只给运维后台用，不给代码用
+❌ rpc_user
+这是系统内部用户
+不是给你业务代码用的
+容易冲突、权限不对
+
+wsl bash -c "sudo rabbitmqctl add_user app_user 123456"
+wsl bash -c "sudo rabbitmqctl set_permissions -p / app_user '.*' '.*' '.*' && sudo rabbitmqctl set_user_tags app_user management"
 
 本目录按 `README_rabbitmq.md` 新建了三套示例：
 

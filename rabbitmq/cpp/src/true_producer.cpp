@@ -249,7 +249,7 @@ std::vector<Message> build_messages(const std::string& prefix, int count, int cr
 }
 
 int main(int argc, char* argv[]) {
-    TrueProducer producer("localhost", 5672, "admin", "5Edidada");
+    TrueProducer producer("localhost", 5672, "app_user", "123456");
     
     try {
         producer.connect();

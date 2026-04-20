@@ -239,7 +239,7 @@ public:
 };
 
 int main(int argc, char* argv[]) {
-    TrueConsumer consumer("localhost", 5672, "admin", "5Edidada");
+    TrueConsumer consumer("localhost", 5672, "app_user", "123456");
     
     try {
         consumer.connect();
