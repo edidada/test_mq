@@ -328,3 +328,37 @@ Caused by: com.rabbitmq.client.ShutdownSignalException: clean channel shutdown; 
 2026-04-20 20:31:06.711 [main] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-010 (normal)
 2026-04-20 20:31:06.711 [main] INFO  com.testmq.rabbitmq.TrueProducer - done!
 2026-04-20 20:31:07.719 [main] INFO  com.testmq.rabbitmq.TrueProducer - connection closed
+2026-04-20 20:31:20.727 [main] INFO  com.testmq.rabbitmq.ConfigLoader - Configuration loaded successfully from application.properties
+2026-04-20 20:31:20.735 [main] INFO  com.testmq.rabbitmq.TrueProducer - Initializing producer with config: host=localhost, port=5672, queue=test_queue, batchSize=10
+2026-04-20 20:31:20.762 [main] INFO  com.testmq.rabbitmq.TrueProducer - connecting to RabbitMQ...
+2026-04-20 20:31:20.873 [main] INFO  com.testmq.rabbitmq.TrueProducer - connected successfully
+2026-04-20 20:31:20.875 [main] INFO  com.testmq.rabbitmq.TrueProducer - sending batch of 10 messages
+2026-04-20 20:31:20.877 [main] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-001 (normal)
+2026-04-20 20:31:20.878 [main] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-002 (normal)
+2026-04-20 20:31:20.878 [main] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-003 (critical)
+2026-04-20 20:31:20.878 [main] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-004 (normal)
+2026-04-20 20:31:20.878 [main] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-005 (normal)
+2026-04-20 20:31:20.879 [main] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-006 (critical)
+2026-04-20 20:31:20.879 [main] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-007 (normal)
+2026-04-20 20:31:20.879 [main] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-008 (normal)
+2026-04-20 20:31:20.879 [main] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-009 (critical)
+2026-04-20 20:31:20.879 [main] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-010 (normal)
+2026-04-20 20:31:20.880 [main] INFO  com.testmq.rabbitmq.TrueProducer - done!
+2026-04-20 20:31:21.888 [main] INFO  com.testmq.rabbitmq.TrueProducer - connection closed
+2026-04-20 20:32:20.258 [main] [tid:3] INFO  com.testmq.rabbitmq.ConfigLoader - Configuration loaded successfully from application.properties
+2026-04-20 20:32:20.265 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - Initializing producer with config: host=localhost, port=5672, queue=test_queue, batchSize=10
+2026-04-20 20:32:20.289 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - connecting to RabbitMQ...
+2026-04-20 20:32:20.390 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - connected successfully
+2026-04-20 20:32:20.391 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sending batch of 10 messages
+2026-04-20 20:32:20.394 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-001 (normal)
+2026-04-20 20:32:20.394 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-002 (normal)
+2026-04-20 20:32:20.394 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-003 (critical)
+2026-04-20 20:32:20.396 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-004 (normal)
+2026-04-20 20:32:20.396 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-005 (normal)
+2026-04-20 20:32:20.396 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-006 (critical)
+2026-04-20 20:32:20.396 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-007 (normal)
+2026-04-20 20:32:20.396 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-008 (normal)
+2026-04-20 20:32:20.397 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-009 (critical)
+2026-04-20 20:32:20.398 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - sent: msg-010 (normal)
+2026-04-20 20:32:20.398 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - done!
+2026-04-20 20:32:21.405 [main] [tid:3] INFO  com.testmq.rabbitmq.TrueProducer - connection closed
