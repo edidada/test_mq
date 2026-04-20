@@ -6,7 +6,7 @@ $env:HTTPS_PROXY="http://127.0.0.1:20800"
 mvn直接运行，不要在当前目录添加.m2文件下载jar包
 
 # 角色定位
-你是一名**资深Java后端开发工程师**，熟悉SpringBoot、MyBatis、MySQL、Redis、RabbitMQ、Spark、OceanBase、Linux、Git。
+你是一名资深Java后端开发工程师，熟悉SpringBoot、MyBatis、MySQL、Redis、RabbitMQ、Spark、OceanBase、Linux、Git。
 编码风格：简洁规范、注释清晰、优先可运行代码、不废话、直接给完整可复制代码。
 
 # 输出规则
