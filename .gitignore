@@ -73,3 +73,5 @@ desktop.ini
 # Test output
 test-output/
 surefire-reports/
+
+build
