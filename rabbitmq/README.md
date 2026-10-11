@@ -1,73 +1,109 @@
-# RabbitMQ 故障处理实践
-✔ 开发 / 测试环境：用 admin
-✔ 生产环境：必须新建专用用户（app_user）
+# RabbitMQ 消息积压与故障恢复实践
 
-权限太大，代码里用有安全风险
-只给运维后台用，不给代码用
-❌ rpc_user
-这是系统内部用户
-不是给你业务代码用的
-容易冲突、权限不对
+本目录提供 Java、Python、C++ 三套 RabbitMQ 生产者/消费者，以及可直接运行的故障演练。
 
-wsl bash -c "sudo rabbitmqctl add_user app_user 123456"
-wsl bash -c "sudo rabbitmqctl set_permissions -p / app_user '.*' '.*' '.*' && sudo rabbitmqctl set_user_tags app_user management"
+| 目标 | 实现 |
+| --- | --- |
+| 消息积压 | 持久化优先级队列；critical 消息优先；可启动多个消费者扩容 |
+| 无效消息 | `test_queue.dlq` 死信队列 |
+| RabbitMQ 挂掉 | Python 生产者将消息 fsync 到 `outbox.jsonl`，恢复后确认发布并重放 |
+| MySQL 挂掉 | Python 消费者有限重试，失败后 fsync 到 `pending_db.jsonl`，恢复后幂等补偿 |
+| 重复投递 | MySQL 以 `message_id` 为主键，使用 upsert 保证幂等 |
 
-本目录按 `README_rabbitmq.md` 新建了三套示例：
+`python/demo.py`、`java/.../DemoApp.java` 和 `cpp/src/demo.cpp` 是不依赖服务的文件系统模拟。`true_producer` / `true_consumer` 是连接真实 RabbitMQ 的版本；Python 真实消费者还连接 MySQL，完成端到端故障补偿。
 
-- `python/`
-- `java/`
-- `cpp/`
+## WSL 环境
 
-三套示例都覆盖同一主题：
+以下命令已在 WSL Ubuntu 24.04、RabbitMQ 3.12、MySQL 8.0 上验证。安装依赖并启动服务：
 
-1. 消息积压：积压超过阈值时进入 surge mode，加速消费并降级丢弃低优先级消息。
-2. MQ 挂掉：生产者切换到本地 `outbox` 文件，恢复后自动补发。
-3. MySQL 挂掉：消费者重试失败后写入本地 `pending_db`，恢复后自动补偿。
-4. MQ 和 MySQL 同时挂掉：全面降级到本地文件，待恢复后统一回放。
-
-## 说明
-
-当前仓库运行环境无法直接操控 README 中提到的 WSL Ubuntu 服务，因此这里提供的是“可本地直接运行”的故障演练代码：
-
-- 不依赖外部 RabbitMQ / MySQL 服务
-- 用本地文件模拟 RabbitMQ 队列、生产者 outbox、数据库落库结果
-- 处理策略和真实系统一致：重试、降级、补偿、死信
-
-如果你后续在 WSL 中启用了真实 RabbitMQ/MySQL，可以把这些处理策略迁移到真实客户端代码中。
-
-## 运行
-
-### Python
-
-```powershell
-python rabbitmq/python/demo.py
+```bash
+sudo apt update
+sudo apt install -y rabbitmq-server mysql-server librabbitmq-dev \
+  python3-pika python3-mysql.connector cmake g++
+sudo systemctl enable --now rabbitmq-server mysql
 ```
 
-### Java
+初始化本项目专用的数据库、表和演练账号：
 
-```powershell
-$out = Join-Path (Resolve-Path .) 'rabbitmq\java\out'
-New-Item -ItemType Directory -Force -Path $out | Out-Null
-$sources = Get-ChildItem 'rabbitmq\java\src\main\java' -Recurse -Filter *.java | ForEach-Object { $_.FullName }
-javac -encoding UTF-8 -d $out $sources
-java -cp rabbitmq\java\out com.testmq.rabbitmq.DemoApp
+```bash
+mysql < /mnt/d/develops/git/github/cpp/test_mq/rabbitmq/sql/bootstrap_mysql.sql
 ```
 
-### C++
+`bootstrap_mysql.sql` 仅创建 `mq_demo` 数据库和 `mq_demo` 账号。账号密码仅限本地演练，生产环境必须用部署系统注入独立密钥。
 
-```powershell
-$outDir = Join-Path (Resolve-Path .) 'build\rabbitmq_cpp'
-New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-g++ -std=c++17 rabbitmq\cpp\src\demo.cpp -o (Join-Path $outDir 'demo.exe')
-.\build\rabbitmq_cpp\demo.exe
+RabbitMQ 本地演练默认使用 `guest/guest`。该账号只能从本机连接，生产环境应创建最小权限应用账号，并通过 `RABBITMQ_USERNAME`、`RABBITMQ_PASSWORD` 环境变量传入。
+
+如果 Windows 已运行另一个 MySQL（本机 `3306` 被 `mysqld.exe` 占用），请像下面这样在 WSL 内运行 Python 演练，确保使用 WSL 的 `mq_demo` 数据库。
+
+## 已验证的真实演练
+
+设项目路径为：
+
+```bash
+cd /mnt/d/develops/git/github/cpp/test_mq/rabbitmq/python
+export MQ_DEMO_RUNTIME_DIR=/tmp/mq-resilience-demo
 ```
 
-## 运行产物
+正常收发：
 
-每种语言都会在自己的 `runtime/` 目录下生成：
+```bash
+python3 true_producer.py --count 3 --prefix normal
+python3 true_consumer.py --count 3
+```
 
-- `queue.txt`：模拟 MQ 队列
-- `outbox.txt`：MQ 挂掉时生产者暂存区
-- `pending_db.txt`：MySQL 挂掉时消费者暂存区
-- `db.txt`：模拟成功落库的数据
-- `dead_letter.txt`：降级或重试耗尽后的消息
+MySQL 故障与恢复：
+
+```bash
+python3 true_producer.py --count 2 --prefix mysql-down
+sudo systemctl stop mysql
+python3 true_consumer.py --count 2
+wc -l "$MQ_DEMO_RUNTIME_DIR/pending_db.jsonl"
+sudo systemctl start mysql
+python3 true_consumer.py --flush-pending-only
+```
+
+RabbitMQ 故障与恢复：
+
+```bash
+sudo systemctl stop rabbitmq-server
+python3 true_producer.py --count 2 --prefix mq-down
+wc -l "$MQ_DEMO_RUNTIME_DIR/outbox.jsonl"
+sudo systemctl start rabbitmq-server
+python3 true_producer.py --replay-only
+python3 true_consumer.py --count 2
+```
+
+双故障与恢复：
+
+```bash
+sudo systemctl stop rabbitmq-server mysql
+python3 true_producer.py --count 2 --prefix both-down
+sudo systemctl start rabbitmq-server
+python3 true_producer.py --replay-only
+python3 true_consumer.py --count 2
+sudo systemctl start mysql
+python3 true_consumer.py --flush-pending-only
+```
+
+本次验证结果：正常消息 3 条落库；MySQL 停机时 2 条写入 `pending_db.jsonl` 并在恢复后补偿；RabbitMQ 停机时 2 条写入 `outbox.jsonl` 并在恢复后重放；双故障时另有 2 条先写 outbox、后写 pending_db、最终补偿。最终 `mq_demo.processed_messages` 为 9 条记录，两个本地恢复文件均为空。
+
+## Java 和 C++ 真实客户端
+
+Java 在 Windows PowerShell 中运行：
+
+```powershell
+mvn -f rabbitmq\java\pom.xml clean compile
+mvn -f rabbitmq\java\pom.xml exec:java '-Dexec.mainClass=com.testmq.rabbitmq.TrueProducer'
+mvn -f rabbitmq\java\pom.xml exec:java '-Dexec.mainClass=com.testmq.rabbitmq.TrueConsumer'
+```
+
+C++ 在 WSL 中构建并运行：
+
+```bash
+cmake -S /mnt/d/develops/git/github/cpp/test_mq/rabbitmq/cpp -B /tmp/test_mq_rabbitmq_build
+cmake --build /tmp/test_mq_rabbitmq_build -j2
+/tmp/test_mq_rabbitmq_build/true_producer
+/tmp/test_mq_rabbitmq_build/true_consumer
+```
+
+Java 和 C++ 真实客户端都声明相同的 `x-max-priority`、死信交换机和死信路由键；本次均已完成 10 条生产和消费，critical 消息先被消费。

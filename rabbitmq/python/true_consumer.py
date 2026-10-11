@@ -1,134 +1,197 @@
-"""
-真正的 RabbitMQ 消费者 - 使用 pika 库
-"""
-import pika
+"""RabbitMQ consumer with MySQL persistence and outage-safe local fallback."""
+
+from __future__ import annotations
+
+import argparse
+import os
 import time
-from typing import Optional, Callable
+from pathlib import Path
+
+import mysql.connector
+import pika
+from mysql.connector import Error as MySQLError
+from pika.exceptions import AMQPError
+
+from true_producer import JsonlStore, Message
+
+
+class MySQLRepository:
+    def __init__(self) -> None:
+        self.config = {
+            "host": os.getenv("MYSQL_HOST", "localhost"),
+            "port": int(os.getenv("MYSQL_PORT", "3306")),
+            "user": os.getenv("MYSQL_USER", "mq_demo"),
+            "password": os.getenv("MYSQL_PASSWORD", "mq_demo_dev_password"),
+            "database": os.getenv("MYSQL_DATABASE", "mq_demo"),
+            "connection_timeout": 3,
+            # The local WSL MySQL instance is reached over loopback. Explicitly
+            # disable TLS so the distro's older connector remains compatible
+            # with Python 3.12, which no longer exposes ssl.wrap_socket.
+            "ssl_disabled": True,
+        }
+
+    def persist(self, message: Message) -> None:
+        connection = mysql.connector.connect(**self.config)
+        try:
+            cursor = connection.cursor()
+            cursor.execute(
+                """
+                INSERT INTO processed_messages (message_id, priority, body)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE priority = VALUES(priority), body = VALUES(body)
+                """,
+                (message.message_id, message.priority, message.body),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+    def persist_with_retry(self, message: Message) -> None:
+        attempts = int(os.getenv("MYSQL_RETRY_ATTEMPTS", "3"))
+        delay_seconds = float(os.getenv("MYSQL_RETRY_DELAY_SECONDS", "0.2"))
+        last_error: MySQLError | None = None
+
+        for attempt in range(1, attempts + 1):
+            try:
+                self.persist(message)
+                return
+            except MySQLError as exc:
+                last_error = exc
+                if attempt < attempts:
+                    print(f"[consumer] MySQL retry {attempt}/{attempts}: {message.message_id}")
+                    time.sleep(delay_seconds * attempt)
+
+        assert last_error is not None
+        raise last_error
 
 
 class TrueConsumer:
-    def __init__(self, host: str = "localhost", port: int = 5672,
-                 username: str = "app_user", password: str = "123456") -> None:
-        self.host = host
-        self.port = port
-        self.username = username
-        self.password = password
-        self.queue_name = "test_queue"
-        
-        self.connection: Optional[pika.BlockingConnection] = None
-        self.channel: Optional[pika.channel.Channel] = None
-        self.message_count = 0
-        self.mysql_up = True
+    def __init__(self) -> None:
+        self.host = os.getenv("RABBITMQ_HOST", "localhost")
+        self.port = int(os.getenv("RABBITMQ_PORT", "5672"))
+        self.username = os.getenv("RABBITMQ_USERNAME", "guest")
+        self.password = os.getenv("RABBITMQ_PASSWORD", "guest")
+        self.queue_name = os.getenv("RABBITMQ_QUEUE", "test_queue")
+        runtime_dir = Path(os.getenv("MQ_DEMO_RUNTIME_DIR", Path(__file__).resolve().parent / "runtime"))
+        self.pending_db = JsonlStore(runtime_dir / "pending_db.jsonl")
+        self.repository = MySQLRepository()
+        self.connection: pika.BlockingConnection | None = None
+        self.channel: pika.channel.Channel | None = None
         self.persisted = 0
-        self.retried = 0
-        self.pending = 0
+        self.deferred = 0
+        self.dead_lettered = 0
 
     def connect(self) -> None:
-        """连接到 RabbitMQ 服务器"""
+        if self.connection and self.connection.is_open:
+            return
         print(f"[consumer] connecting to RabbitMQ at {self.host}:{self.port}...")
-        
-        credentials = pika.PlainCredentials(self.username, self.password)
-        parameters = pika.ConnectionParameters(
-            host=self.host,
-            port=self.port,
-            credentials=credentials,
-            heartbeat=600,
-            blocked_connection_timeout=300
+        self.connection = pika.BlockingConnection(
+            pika.ConnectionParameters(
+                host=self.host,
+                port=self.port,
+                credentials=pika.PlainCredentials(self.username, self.password),
+                connection_attempts=3,
+                retry_delay=1,
+                socket_timeout=3,
+            )
         )
-        
-        self.connection = pika.BlockingConnection(parameters)
         self.channel = self.connection.channel()
-        
-        # 声明持久化队列
-        self.channel.queue_declare(queue=self.queue_name, durable=True)
-        
-        # 设置 QoS - 每次只处理一条消息
+        self.channel.queue_declare(queue=f"{self.queue_name}.dlq", durable=True)
+        self.channel.queue_declare(
+            queue=self.queue_name,
+            durable=True,
+            arguments={
+                "x-max-priority": 10,
+                "x-dead-letter-exchange": "",
+                "x-dead-letter-routing-key": f"{self.queue_name}.dlq",
+            },
+        )
         self.channel.basic_qos(prefetch_count=1)
-        
         print("[consumer] connected successfully")
 
-    def start_consuming(self, expected_messages: int = 0) -> None:
-        """开始消费消息"""
-        if self.channel is None:
-            raise RuntimeError("Consumer not connected. Call connect() first.")
-        
-        def callback(channel, method, properties, body):
-            """消息回调函数"""
-            message_str = body.decode('utf-8')
-            print(f"[consumer] received: {message_str}")
-            
-            # 解析消息
-            parts = message_str.split("|", 2)
-            if len(parts) == 3:
-                message_id, priority, msg_body = parts
-                print(f"  [processing] {message_id} - priority: {priority}, body: {msg_body}")
-            
-            # 模拟业务处理
-            self._process_message(message_str)
-            
-            # 手动 ACK
-            channel.basic_ack(delivery_tag=method.delivery_tag)
-            self.message_count += 1
-            self.persisted += 1
-            
-            print(f"[consumer] processed message #{self.message_count}")
-        
-        # 开始消费
-        print(f"[consumer] waiting for messages...")
-        self.channel.basic_consume(
-            queue=self.queue_name,
-            on_message_callback=callback,
-            auto_ack=False  # 手动 ACK
+    def consume(self, expected_messages: int, idle_timeout_seconds: int = 5) -> None:
+        self.connect()
+        assert self.channel is not None
+        handled = 0
+        deadline = time.monotonic() + idle_timeout_seconds
+        while handled < expected_messages and time.monotonic() < deadline:
+            method, _properties, body = self.channel.basic_get(queue=self.queue_name, auto_ack=False)
+            if method is None:
+                time.sleep(0.2)
+                continue
+
+            try:
+                message_id, priority, payload = body.decode("utf-8").split("|", 2)
+                message = Message(message_id, priority, payload)
+            except ValueError:
+                self.channel.basic_nack(method.delivery_tag, requeue=False)
+                self.dead_lettered += 1
+                handled += 1
+                print("[consumer] malformed message routed to dead-letter queue")
+                continue
+
+            try:
+                self.repository.persist_with_retry(message)
+                self.persisted += 1
+                print(f"[consumer] persisted: {message.message_id}")
+            except MySQLError as exc:
+                # The local append is durable before ACK, so the message can be
+                # compensated after MySQL is restored without redelivery storms.
+                self.pending_db.append(message)
+                self.deferred += 1
+                print(f"[consumer] MySQL unavailable; saved to pending_db: {message.message_id} ({exc!r})")
+
+            self.channel.basic_ack(method.delivery_tag)
+            handled += 1
+            deadline = time.monotonic() + idle_timeout_seconds
+
+        print(
+            f"[consumer] handled={handled}, persisted={self.persisted}, "
+            f"deferred={self.deferred}, dead_lettered={self.dead_lettered}"
         )
-        
-        # 如果指定了期望消息数，则消费相应数量后停止
-        if expected_messages > 0:
-            for _ in range(expected_messages):
-                self.connection.process_data_events(time_limit=1)
-                if self.message_count >= expected_messages:
-                    break
-            print(f"[consumer] processed {self.message_count} messages")
-        else:
-            # 持续消费
-            self.channel.start_consuming()
 
-    def _process_message(self, message: str) -> None:
-        """处理消息（模拟业务逻辑）"""
-        # 这里可以添加实际的业务逻辑
-        time.sleep(0.01)  # 模拟处理时间
-
-    def stop_consuming(self) -> None:
-        """停止消费"""
-        if self.channel and self.channel.is_open:
-            self.channel.stop_consuming()
-            print("[consumer] stopped consuming")
+    def flush_pending_db(self) -> None:
+        stored = self.pending_db.read()
+        remaining: list[Message] = []
+        print(f"[consumer] replaying {len(stored)} pending_db messages")
+        for index, message in enumerate(stored):
+            try:
+                self.repository.persist_with_retry(message)
+                self.persisted += 1
+                print(f"[consumer] persisted pending message: {message.message_id}")
+            except MySQLError as exc:
+                remaining.extend(stored[index:])
+                print(f"[consumer] MySQL still unavailable; replay paused ({exc!r})")
+                break
+        self.pending_db.replace(remaining)
 
     def close(self) -> None:
-        """关闭连接"""
         if self.channel and self.channel.is_open:
             self.channel.close()
         if self.connection and self.connection.is_open:
             self.connection.close()
-        print("[consumer] connection closed")
+        self.channel = None
+        self.connection = None
 
-    def __enter__(self) -> "TrueConsumer":
-        self.connect()
-        return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.close()
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--count", type=int, default=10)
+    parser.add_argument("--flush-pending-only", action="store_true")
+    args = parser.parse_args()
+
+    consumer = TrueConsumer()
+    try:
+        if args.flush_pending_only:
+            consumer.flush_pending_db()
+        else:
+            consumer.consume(args.count)
+    except AMQPError as exc:
+        print(f"[consumer] RabbitMQ error: {exc!r}")
+        raise SystemExit(1) from exc
+    finally:
+        consumer.close()
 
 
 if __name__ == "__main__":
-    # 示例：消费消息
-    consumer = TrueConsumer("localhost", 5672, "app_user", "123456")
-    try:
-        consumer.connect()
-        consumer.start_consuming(expected_messages=10)
-        print("[consumer] done!")
-    except KeyboardInterrupt:
-        print("[consumer] interrupted by user")
-    except Exception as e:
-        print(f"[consumer] error: {e}")
-    finally:
-        consumer.close()
+    main()

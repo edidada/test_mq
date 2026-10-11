@@ -62,27 +62,9 @@ private:
     }
     
     void die_on_error(int code, const char* context) {
-        if (code < 0) {
+        if (code != AMQP_STATUS_OK) {
             std::cerr << "[producer] error: " << context << ": " 
                       << amqp_error_string2(code) << std::endl;
-            exit(1);
-        }
-        
-        amqp_rpc_reply_t ret = amqp_get_rpc_reply(conn);
-        if (ret.reply_type != AMQP_RESPONSE_NORMAL) {
-            std::cerr << "[producer] error: " << context << ": RPC error" << std::endl;
-            std::cerr << "  Reply type: " << ret.reply_type << std::endl;
-            if (ret.reply_type == AMQP_RESPONSE_LIBRARY_EXCEPTION) {
-                std::cerr << "  Library error: " << ret.library_error << std::endl;
-            } else if (ret.reply_type == AMQP_RESPONSE_SERVER_EXCEPTION) {
-                std::cerr << "  Server exception" << std::endl;
-                if (ret.reply.id == AMQP_CONNECTION_CLOSE_METHOD) {
-                    amqp_connection_close_t *close = (amqp_connection_close_t *)ret.reply.decoded;
-                    std::cerr << "  Server close reason: " << close->reply_code 
-                              << " - " << std::string((char*)close->reply_text.bytes, close->reply_text.len) 
-                              << std::endl;
-                }
-            }
             exit(1);
         }
     }
@@ -162,14 +144,34 @@ public:
         }
         std::cout << "[producer] channel opened successfully" << std::endl;
         
-        // 声明队列（持久化）
+        // Declare the dead-letter queue before the main priority queue.
+        amqp_queue_declare(conn, channel, to_bytes(queue_name + ".dlq"),
+                           0, true, false, false, amqp_empty_table);
+        if (amqp_get_rpc_reply(conn).reply_type != AMQP_RESPONSE_NORMAL) {
+            std::cerr << "[producer] error: failed to declare dead-letter queue" << std::endl;
+            exit(1);
+        }
+
+        amqp_table_entry_t entries[3];
+        entries[0].key = amqp_cstring_bytes("x-max-priority");
+        entries[0].value.kind = AMQP_FIELD_KIND_I32;
+        entries[0].value.value.i32 = 10;
+        entries[1].key = amqp_cstring_bytes("x-dead-letter-exchange");
+        entries[1].value.kind = AMQP_FIELD_KIND_UTF8;
+        entries[1].value.value.bytes = amqp_cstring_bytes("");
+        entries[2].key = amqp_cstring_bytes("x-dead-letter-routing-key");
+        entries[2].value.kind = AMQP_FIELD_KIND_UTF8;
+        entries[2].value.value.bytes = to_bytes(queue_name + ".dlq");
+        amqp_table_t arguments{3, entries};
+
+        // Declare a persistent priority queue with a dead-letter target.
         amqp_queue_declare_ok_t *queue_ret = amqp_queue_declare(
             conn, channel, to_bytes(queue_name),
             0,     // passive
             true,  // durable
             false, // exclusive
             false, // auto_delete
-            amqp_empty_table
+            arguments
         );
         if (!queue_ret) {
             std::cerr << "[producer] error: failed to declare queue" << std::endl;
@@ -194,15 +196,14 @@ public:
         props.priority = (message.priority == "critical") ? 10 : 0;
         
         // 发布消息
-        amqp_basic_publish(conn, channel,
-                          amqp_empty_bytes,           // exchange
-                          to_bytes(queue_name),       // routing key
-                          0,                          // mandatory
-                          0,                          // immediate
-                          &props,                     // properties
-                          to_bytes(message_body));    // body
-        
-        die_on_error(amqp_get_rpc_reply(conn).reply_type, "Publishing message");
+        int status = amqp_basic_publish(conn, channel,
+                                        amqp_empty_bytes,           // exchange
+                                        to_bytes(queue_name),       // routing key
+                                        0,                          // mandatory
+                                        0,                          // immediate
+                                        &props,                     // properties
+                                        to_bytes(message_body));    // body
+        die_on_error(status, "Publishing message");
         
         // 释放内存
         amqp_bytes_free(props.content_type);
@@ -249,7 +250,7 @@ std::vector<Message> build_messages(const std::string& prefix, int count, int cr
 }
 
 int main(int argc, char* argv[]) {
-    TrueProducer producer("localhost", 5672, "app_user", "123456");
+    TrueProducer producer("localhost", 5672, "guest", "guest");
     
     try {
         producer.connect();

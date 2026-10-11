@@ -5,6 +5,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -56,7 +58,8 @@ public class TrueConsumer {
         logger.info("connecting to RabbitMQ...");
         connection = factory.newConnection();
         channel = connection.createChannel();
-        channel.queueDeclare(queueName, true, false, false, null);
+        channel.queueDeclare(queueName + ".dlq", true, false, false, null);
+        channel.queueDeclare(queueName, true, false, false, queueArguments());
         logger.info("connected successfully");
     }
 
@@ -106,6 +109,14 @@ public class TrueConsumer {
             String body = parts[2];
             logger.debug("  [processing] {} - priority: {}, body: {}", messageId, priority, body);
         }
+    }
+
+    private Map<String, Object> queueArguments() {
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("x-max-priority", 10);
+        arguments.put("x-dead-letter-exchange", "");
+        arguments.put("x-dead-letter-routing-key", queueName + ".dlq");
+        return arguments;
     }
 
     public void close() {

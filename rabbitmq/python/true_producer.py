@@ -1,132 +1,182 @@
-"""
-真正的 RabbitMQ 生产者 - 使用 pika 库
-"""
+"""RabbitMQ producer with durable local outbox fallback."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Iterable
+
 import pika
-from typing import Iterable, List, Optional
+from pika.exceptions import AMQPError
 
 
+@dataclass(frozen=True)
 class Message:
-    def __init__(self, message_id: str, priority: str, body: str) -> None:
-        self.message_id = message_id
-        self.priority = priority
-        self.body = body
+    message_id: str
+    priority: str
+    body: str
 
     def encode(self) -> str:
         return f"{self.message_id}|{self.priority}|{self.body}"
 
-    @staticmethod
-    def decode(line: str) -> "Message":
-        parts = line.rstrip("\n").split("|", 2)
-        if len(parts) != 3:
-            raise ValueError(f"invalid message line: {line!r}")
-        return Message(parts[0], parts[1], parts[2])
+
+class JsonlStore:
+    """Append-only local durable store used for outage recovery."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def append(self, message: Message) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(asdict(message), ensure_ascii=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    def read(self) -> list[Message]:
+        if not self.path.exists():
+            return []
+        return [Message(**json.loads(line)) for line in self.path.read_text(encoding="utf-8").splitlines() if line]
+
+    def replace(self, messages: Iterable[Message]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
+        with temporary.open("w", encoding="utf-8") as handle:
+            for message in messages:
+                handle.write(json.dumps(asdict(message), ensure_ascii=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary.replace(self.path)
 
 
 class TrueProducer:
-    def __init__(self, host: str = "localhost", port: int = 5672, 
-                 username: str = "app_user", password: str = "123456") -> None:
-        self.host = host
-        self.port = port
-        self.username = username
-        self.password = password
-        self.queue_name = "test_queue"
-        
-        self.connection: Optional[pika.BlockingConnection] = None
-        self.channel: Optional[pika.channel.Channel] = None
-        self.sent_to_queue = 0
-        self.spooled_to_outbox = 0
+    def __init__(self) -> None:
+        self.host = os.getenv("RABBITMQ_HOST", "localhost")
+        self.port = int(os.getenv("RABBITMQ_PORT", "5672"))
+        # guest is deliberately the local-development default. Use a dedicated
+        # account from environment variables in production.
+        self.username = os.getenv("RABBITMQ_USERNAME", "guest")
+        self.password = os.getenv("RABBITMQ_PASSWORD", "guest")
+        self.queue_name = os.getenv("RABBITMQ_QUEUE", "test_queue")
+        runtime_dir = Path(os.getenv("MQ_DEMO_RUNTIME_DIR", Path(__file__).resolve().parent / "runtime"))
+        self.outbox = JsonlStore(runtime_dir / "outbox.jsonl")
+        self.connection: pika.BlockingConnection | None = None
+        self.channel: pika.channel.Channel | None = None
 
     def connect(self) -> None:
-        """连接到 RabbitMQ 服务器"""
+        if self.connection and self.connection.is_open:
+            return
         print(f"[producer] connecting to RabbitMQ at {self.host}:{self.port}...")
-        
-        credentials = pika.PlainCredentials(self.username, self.password)
         parameters = pika.ConnectionParameters(
             host=self.host,
             port=self.port,
-            credentials=credentials,
-            heartbeat=600,
-            blocked_connection_timeout=300
+            credentials=pika.PlainCredentials(self.username, self.password),
+            connection_attempts=3,
+            retry_delay=1,
+            socket_timeout=3,
+            blocked_connection_timeout=5,
         )
-        
         self.connection = pika.BlockingConnection(parameters)
         self.channel = self.connection.channel()
-        
-        # 声明持久化队列
-        self.channel.queue_declare(queue=self.queue_name, durable=True)
-        
+        self.channel.queue_declare(queue=f"{self.queue_name}.dlq", durable=True)
+        self.channel.queue_declare(
+            queue=self.queue_name,
+            durable=True,
+            arguments={
+                "x-max-priority": 10,
+                "x-dead-letter-exchange": "",
+                "x-dead-letter-routing-key": f"{self.queue_name}.dlq",
+            },
+        )
+        self.channel.confirm_delivery()
         print("[producer] connected successfully")
 
-    def send(self, message: Message) -> None:
-        """发送单条消息到 RabbitMQ"""
-        if self.channel is None:
-            raise RuntimeError("Producer not connected. Call connect() first.")
-        
-        message_body = message.encode().encode('utf-8')
-        
-        # 设置消息属性
-        properties = pika.BasicProperties(
-            content_type='text/plain',
-            delivery_mode=2,  # 持久化
-            priority=10 if message.priority == "critical" else 0
-        )
-        
-        # 发布消息
+    def _publish(self, message: Message) -> None:
+        self.connect()
+        assert self.channel is not None
         self.channel.basic_publish(
-            exchange='',
+            exchange="",
             routing_key=self.queue_name,
-            body=message_body,
-            properties=properties
+            body=message.encode().encode("utf-8"),
+            properties=pika.BasicProperties(
+                content_type="text/plain",
+                delivery_mode=2,
+                priority=10 if message.priority == "critical" else 0,
+                message_id=message.message_id,
+            ),
+            mandatory=True,
         )
-        
-        self.sent_to_queue += 1
-        print(f"[producer] sent: {message.message_id} ({message.priority})")
+
+    def send(self, message: Message) -> bool:
+        try:
+            self._publish(message)
+            print(f"[producer] sent: {message.message_id} ({message.priority})")
+            return True
+        except (AMQPError, OSError) as exc:
+            self.close()
+            self.outbox.append(message)
+            print(f"[producer] RabbitMQ unavailable, saved to outbox: {message.message_id} ({exc!r})")
+            return False
 
     def send_batch(self, messages: Iterable[Message]) -> None:
-        """批量发送消息"""
-        print(f"[producer] sending batch of {len(list(messages))} messages")
-        for message in messages:
+        batch = list(messages)
+        print(f"[producer] sending batch of {len(batch)} messages")
+        for message in batch:
             self.send(message)
 
+    def replay_outbox(self) -> None:
+        remaining: list[Message] = []
+        stored = self.outbox.read()
+        print(f"[producer] replaying {len(stored)} outbox messages")
+        for index, message in enumerate(stored):
+            try:
+                self._publish(message)
+                print(f"[producer] replayed: {message.message_id}")
+            except (AMQPError, OSError) as exc:
+                self.close()
+                remaining.extend(stored[index:])
+                print(f"[producer] replay paused; RabbitMQ is unavailable ({exc!r})")
+                break
+        self.outbox.replace(remaining)
+
     def close(self) -> None:
-        """关闭连接"""
         if self.channel and self.channel.is_open:
             self.channel.close()
         if self.connection and self.connection.is_open:
             self.connection.close()
-        print("[producer] connection closed")
-
-    def __enter__(self) -> "TrueProducer":
-        self.connect()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.close()
+        self.channel = None
+        self.connection = None
 
 
-def build_messages(prefix: str, count: int, critical_every: int = 0) -> List[Message]:
-    """构建测试消息列表"""
-    messages: List[Message] = []
-    for index in range(1, count + 1):
-        priority = "critical" if critical_every and index % critical_every == 0 else "normal"
-        message_id = f"{prefix}-{index:03d}"
-        body = f"{prefix} payload #{index}"
-        messages.append(Message(message_id, priority, body))
-    return messages
+def build_messages(prefix: str, count: int, critical_every: int = 0) -> list[Message]:
+    return [
+        Message(
+            message_id=f"{prefix}-{index:03d}",
+            priority="critical" if critical_every and index % critical_every == 0 else "normal",
+            body=f"{prefix} payload #{index}",
+        )
+        for index in range(1, count + 1)
+    ]
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--count", type=int, default=10)
+    parser.add_argument("--prefix", default="msg")
+    parser.add_argument("--replay-only", action="store_true")
+    args = parser.parse_args()
+
+    producer = TrueProducer()
+    try:
+        producer.replay_outbox()
+        if not args.replay_only:
+            producer.send_batch(build_messages(args.prefix, args.count, critical_every=3))
+    finally:
+        producer.close()
 
 
 if __name__ == "__main__":
-    # 示例：发送消息
-    producer = TrueProducer("localhost", 5672, "app_user", "123456")
-    try:
-        producer.connect()
-        
-        # 发送 10 条消息，每 3 条中有一条 critical
-        messages = build_messages("msg", 10, 3)
-        producer.send_batch(messages)
-        
-        print("[producer] done!")
-    except Exception as e:
-        print(f"[producer] error: {e}")
-    finally:
-        producer.close()
+    main()

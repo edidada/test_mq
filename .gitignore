@@ -71,9 +71,8 @@ wheels/
 *.swo
 *~
 
-# Logs - 根据 Java 开发规范，日志文件不被 git 忽略
-# *.log
-# logs/
+# Logs - Java 示例的既有日志保留，根目录日志由本地运行生成。
+/logs/
 
 # OS
 .DS_Store

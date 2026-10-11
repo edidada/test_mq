@@ -4,6 +4,8 @@ import com.rabbitmq.client.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -54,7 +56,8 @@ public class TrueProducer {
         logger.info("connecting to RabbitMQ...");
         connection = factory.newConnection();
         channel = connection.createChannel();
-        channel.queueDeclare(queueName, true, false, false, null);
+        channel.queueDeclare(queueName + ".dlq", true, false, false, null);
+        channel.queueDeclare(queueName, true, false, false, queueArguments());
         logger.info("connected successfully");
     }
 
@@ -78,11 +81,19 @@ public class TrueProducer {
     public void sendBatch(int count, int criticalEvery) throws Exception {
         logger.info("sending batch of {} messages", count);
         for (int i = 1; i <= count; i++) {
-            String priority = (i % criticalEvery == 0) ? "critical" : "normal";
+            String priority = criticalEvery > 0 && i % criticalEvery == 0 ? "critical" : "normal";
             String messageId = String.format("%s-%03d", messagePrefix, i);
             String body = "payload #" + i;
             sendMessage(messageId, priority, body);
         }
+    }
+
+    private Map<String, Object> queueArguments() {
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("x-max-priority", 10);
+        arguments.put("x-dead-letter-exchange", "");
+        arguments.put("x-dead-letter-routing-key", queueName + ".dlq");
+        return arguments;
     }
 
     /**

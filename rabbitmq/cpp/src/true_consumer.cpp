@@ -41,12 +41,14 @@ private:
     }
     
     void die_on_error(int code, const char* context) {
-        if (code < 0) {
+        if (code != AMQP_STATUS_OK) {
             std::cerr << "[consumer] error: " << context << ": " 
                       << amqp_error_string2(code) << std::endl;
             exit(1);
         }
-        
+    }
+
+    void die_on_rpc_error(const char* context) {
         amqp_rpc_reply_t ret = amqp_get_rpc_reply(conn);
         if (ret.reply_type != AMQP_RESPONSE_NORMAL) {
             std::cerr << "[consumer] error: " << context << ": RPC error" << std::endl;
@@ -142,14 +144,31 @@ public:
         }
         std::cout << "[consumer] channel opened successfully" << std::endl;
         
-        // 声明队列（持久化）
+        // Declare the dead-letter queue before the main priority queue.
+        amqp_queue_declare(conn, channel, to_bytes(queue_name + ".dlq"),
+                           0, true, false, false, amqp_empty_table);
+        die_on_rpc_error("Declaring dead-letter queue");
+
+        amqp_table_entry_t entries[3];
+        entries[0].key = amqp_cstring_bytes("x-max-priority");
+        entries[0].value.kind = AMQP_FIELD_KIND_I32;
+        entries[0].value.value.i32 = 10;
+        entries[1].key = amqp_cstring_bytes("x-dead-letter-exchange");
+        entries[1].value.kind = AMQP_FIELD_KIND_UTF8;
+        entries[1].value.value.bytes = amqp_cstring_bytes("");
+        entries[2].key = amqp_cstring_bytes("x-dead-letter-routing-key");
+        entries[2].value.kind = AMQP_FIELD_KIND_UTF8;
+        entries[2].value.value.bytes = to_bytes(queue_name + ".dlq");
+        amqp_table_t arguments{3, entries};
+
+        // Declare a persistent priority queue with a dead-letter target.
         amqp_queue_declare_ok_t *queue_ret = amqp_queue_declare(
             conn, channel, to_bytes(queue_name),
             0,     // passive
             true,  // durable
             false, // exclusive
             false, // auto_delete
-            amqp_empty_table
+            arguments
         );
         if (!queue_ret) {
             std::cerr << "[consumer] error: failed to declare queue" << std::endl;
@@ -158,7 +177,7 @@ public:
         
         // 设置 QoS - 每次只处理一条消息
         amqp_basic_qos(conn, channel, 0, 1, 0);
-        die_on_error(amqp_get_rpc_reply(conn).reply_type, "Setting QoS");
+        die_on_rpc_error("Setting QoS");
         
         std::cout << "[consumer] connected successfully" << std::endl;
     }
@@ -174,7 +193,7 @@ public:
                           0,                 // no_ack (false = manual ACK)
                           0,                 // exclusive
                           amqp_empty_table); // arguments
-        die_on_error(amqp_get_rpc_reply(conn).reply_type, "Consuming");
+        die_on_rpc_error("Consuming");
         
         while (true) {
             // 等待消息
@@ -222,9 +241,6 @@ public:
     
     void close() {
         if (conn) {
-            // 取消消费
-            amqp_basic_cancel(conn, channel, amqp_empty_bytes);
-            
             amqp_channel_close(conn, channel, AMQP_REPLY_SUCCESS);
             amqp_connection_close(conn, AMQP_REPLY_SUCCESS);
             amqp_destroy_connection(conn);
@@ -239,7 +255,7 @@ public:
 };
 
 int main(int argc, char* argv[]) {
-    TrueConsumer consumer("localhost", 5672, "app_user", "123456");
+    TrueConsumer consumer("localhost", 5672, "guest", "guest");
     
     try {
         consumer.connect();
