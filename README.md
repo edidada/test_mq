@@ -8,6 +8,14 @@ wsl bash -c "sudo apt update && sudo apt install -y librabbitmq-dev"
 
 K3s 隔离部署与 Java 端到端验证见 [`k8s/rocketmq/README.md`](k8s/rocketmq/README.md)，实际集群测试记录见 [`k8s/rocketmq/测试报告-2026-10-24.md`](k8s/rocketmq/测试报告-2026-10-24.md)。
 
+Kafka、AutoMQ 与 Pulsar 的隔离部署说明见 [`k8s/streaming/README.md`](k8s/streaming/README.md)。
+
+RocketMQ、RabbitMQ 与 MySQL 的共享中间件迁移及回归记录见
+[`k8s/测试报告-2026-10-25-共享中间件迁移.md`](k8s/测试报告-2026-10-25-共享中间件迁移.md)。
+
+跨集群 MQ 部署、GitOps、隔离、复制与灾备的规范见
+[`k8s/跨集群部署规范.md`](k8s/跨集群部署规范.md)。
+
 ## 快速开始
 ### 启动 RocketMQ
 进入 WSL Ubuntu 环境，执行以下命令：

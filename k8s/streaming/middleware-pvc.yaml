@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-data
+  namespace: middleware
+  labels:
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/part-of: streaming-mq
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pulsar-data
+  namespace: middleware
+  labels:
+    app.kubernetes.io/name: pulsar
+    app.kubernetes.io/part-of: streaming-mq
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: automq-minio-data
+  namespace: middleware
+  labels:
+    app.kubernetes.io/name: automq-minio
+    app.kubernetes.io/part-of: streaming-mq
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi

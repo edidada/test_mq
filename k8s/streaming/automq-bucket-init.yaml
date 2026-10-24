@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: automq-bucket-init
+  namespace: middleware
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: minio-client
+          image: docker.1panel.live/minio/mc:RELEASE.2025-05-21T01-59-54Z
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mc alias set local http://automq-minio.middleware.svc.cluster.local:9000 minioadmin minioadmin
+              mc mb --ignore-existing local/automq-data
+              mc mb --ignore-existing local/automq-ops
+              echo "AutoMQ object-storage buckets are ready"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

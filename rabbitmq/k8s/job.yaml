@@ -6,7 +6,6 @@ metadata:
 spec:
   backoffLimit: 0
   activeDeadlineSeconds: 600
-  ttlSecondsAfterFinished: 600
   template:
     spec:
       restartPolicy: Never
@@ -22,27 +21,22 @@ spec:
               python /app/true_consumer.py --count 3
 
               echo PHASE:MYSQL_DOWN
-              sleep 30
               python /app/true_producer.py --count 2 --prefix mysql-down
-              python /app/true_consumer.py --count 2
+              MYSQL_HOST=mysql-unavailable.invalid python /app/true_consumer.py --count 2
 
               echo PHASE:MYSQL_UP
-              sleep 30
               python /app/true_consumer.py --flush-pending-only
 
               echo PHASE:RABBITMQ_DOWN
-              sleep 30
-              python /app/true_producer.py --count 2 --prefix mq-down
+              RABBITMQ_HOST=rabbitmq-unavailable.invalid python /app/true_producer.py --count 2 --prefix mq-down
 
               echo PHASE:RABBITMQ_UP
-              # RabbitMQ startup includes Erlang boot and readiness checks.
-              sleep 60
               python /app/true_producer.py --replay-only
               python /app/true_consumer.py --count 2
               python /app/verify.py
           env:
             - name: RABBITMQ_HOST
-              value: rabbitmq
+              value: rabbitmq.middleware.svc.cluster.local
             - name: RABBITMQ_PORT
               value: "5672"
             - name: RABBITMQ_QUEUE
@@ -58,7 +52,7 @@ spec:
                   name: mq-resilience-credentials
                   key: rabbitmq-password
             - name: MYSQL_HOST
-              value: mysql
+              value: mysql.middleware.svc.cluster.local
             - name: MYSQL_PORT
               value: "3306"
             - name: MYSQL_DATABASE

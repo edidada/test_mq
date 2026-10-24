@@ -1,0 +1,108 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-e2e
+  namespace: streaming-mq-test
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: k3s-worker4
+      restartPolicy: Never
+      containers:
+        - name: kafka-client
+          image: docker.m.daocloud.io/apache/kafka:3.9.2
+          command: ["/bin/bash", "-ec"]
+          args:
+            - |
+              topic=k3s-kafka-e2e
+              /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka.middleware.svc.cluster.local:9092 --create --if-not-exists --topic "$topic" --partitions 1 --replication-factor 1
+              /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka.middleware.svc.cluster.local:9092 --topic "$topic" --from-beginning --max-messages 10 --timeout-ms 60000 > /tmp/received &
+              consumer_pid=$!
+              sleep 3
+              seq 1 10 | /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka.middleware.svc.cluster.local:9092 --topic "$topic"
+              wait "$consumer_pid"
+              test "$(wc -l < /tmp/received | tr -d ' ')" -eq 10
+              echo "Kafka verification passed: 10 messages produced and consumed"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: automq-e2e
+  namespace: streaming-mq-test
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: k3s-worker1
+      restartPolicy: Never
+      containers:
+        - name: automq-client
+          image: docker.1ms.run/automqinc/automq:1.5.5
+          command: ["/bin/bash", "-ec"]
+          args:
+            - |
+              topic=k3s-automq-e2e
+              /opt/automq/kafka/bin/kafka-topics.sh --bootstrap-server automq.middleware.svc.cluster.local:9092 --create --if-not-exists --topic "$topic" --partitions 1 --replication-factor 1
+              /opt/automq/kafka/bin/kafka-console-consumer.sh --bootstrap-server automq.middleware.svc.cluster.local:9092 --topic "$topic" --from-beginning --max-messages 10 --timeout-ms 60000 > /tmp/received &
+              consumer_pid=$!
+              sleep 3
+              seq 1 10 | /opt/automq/kafka/bin/kafka-console-producer.sh --bootstrap-server automq.middleware.svc.cluster.local:9092 --topic "$topic"
+              wait "$consumer_pid"
+              test "$(wc -l < /tmp/received | tr -d ' ')" -eq 10
+              echo "AutoMQ verification passed: 10 messages produced and consumed"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pulsar-e2e
+  namespace: streaming-mq-test
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: k3s-worker2
+      restartPolicy: Never
+      containers:
+        - name: pulsar-client
+          image: docker.m.daocloud.io/apachepulsar/pulsar:3.3.9
+          command: ["/bin/bash", "-ec"]
+          args:
+            - |
+              topic=persistent://public/default/k3s-pulsar-e2e-v2
+              bin/pulsar-client --url pulsar://pulsar.middleware.svc.cluster.local:6650 consume "$topic" -s k3s-pulsar-e2e -n 10 > /tmp/received &
+              consumer_pid=$!
+              sleep 5
+              bin/pulsar-client --url pulsar://pulsar.middleware.svc.cluster.local:6650 produce "$topic" \
+                -m message-1 -m message-2 -m message-3 -m message-4 -m message-5 \
+                -m message-6 -m message-7 -m message-8 -m message-9 -m message-10
+              wait "$consumer_pid"
+              test "$(grep -c -- '----- got message -----' /tmp/received)" -eq 10
+              echo "Pulsar verification passed: 10 messages produced and consumed"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

@@ -2,9 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: rabbitmq
-  namespace: mq-resilience-test
+  namespace: middleware
   labels:
     app: rabbitmq
+    app.kubernetes.io/part-of: mq-resilience
 spec:
   replicas: 1
   selector:
@@ -15,6 +16,8 @@ spec:
       labels:
         app: rabbitmq
     spec:
+      securityContext:
+        fsGroup: 999
       containers:
         - name: rabbitmq
           image: rabbitmq:3.13-management
@@ -32,6 +35,9 @@ spec:
                 secretKeyRef:
                   name: mq-resilience-credentials
                   key: rabbitmq-password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
           resources:
             requests:
               cpu: 100m
@@ -44,12 +50,16 @@ spec:
               port: amqp
             initialDelaySeconds: 5
             periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: rabbitmq-data
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: rabbitmq
-  namespace: mq-resilience-test
+  namespace: middleware
 spec:
   selector:
     app: rabbitmq
@@ -57,99 +67,3 @@ spec:
     - name: amqp
       port: 5672
       targetPort: amqp
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mysql
-  namespace: mq-resilience-test
-  labels:
-    app: mysql
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: mysql
-  template:
-    metadata:
-      labels:
-        app: mysql
-    spec:
-      containers:
-        - name: mysql
-          image: mysql:8.4
-          args: ["--mysql-native-password=ON"]
-          ports:
-            - containerPort: 3306
-              name: mysql
-          env:
-            - name: MYSQL_ROOT_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: mq-resilience-credentials
-                  key: mysql-root-password
-            - name: MYSQL_DATABASE
-              value: mqresilience
-            - name: MYSQL_USER
-              valueFrom:
-                secretKeyRef:
-                  name: mq-resilience-credentials
-                  key: mysql-user
-            - name: MYSQL_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: mq-resilience-credentials
-                  key: mysql-password
-          volumeMounts:
-            - name: schema
-              mountPath: /docker-entrypoint-initdb.d
-            - name: data
-              mountPath: /var/lib/mysql
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-            limits:
-              cpu: "1"
-              memory: 1Gi
-          readinessProbe:
-            tcpSocket:
-              port: mysql
-            initialDelaySeconds: 10
-            periodSeconds: 5
-      volumes:
-        - name: schema
-          configMap:
-            name: mq-resilience-schema
-            defaultMode: 0755
-        - name: data
-          persistentVolumeClaim:
-            claimName: mysql-data
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: mysql
-  namespace: mq-resilience-test
-spec:
-  selector:
-    app: mysql
-  ports:
-    - name: mysql
-      port: 3306
-      targetPort: mysql
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: mysql-data
-  namespace: mq-resilience-test
-  labels:
-    app.kubernetes.io/part-of: mq-resilience-test
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: local-path
-  resources:
-    requests:
-      storage: 2Gi

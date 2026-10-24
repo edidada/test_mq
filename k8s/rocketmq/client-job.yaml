@@ -5,7 +5,6 @@ metadata:
   namespace: rocketmq-resilience-test
 spec:
   backoffLimit: 0
-  ttlSecondsAfterFinished: 86400
   template:
     spec:
       restartPolicy: Never
@@ -47,13 +46,13 @@ spec:
               exit 1
           env:
             - name: ROCKETMQ_NAMESRV_ADDR
-              value: rocketmq-namesrv:9876
+              value: rocketmq-namesrv.middleware.svc.cluster.local:9876
             - name: ROCKETMQ_PRODUCER_GROUP
-              value: k3s_rocketmq_producer
+              value: k3s_rocketmq_resilience_producer
             - name: ROCKETMQ_CONSUMER_GROUP
-              value: k3s_rocketmq_consumer
+              value: k3s_rocketmq_resilience_consumer
             - name: ROCKETMQ_TOPIC_NAME
-              value: K3sRocketMqTopic
+              value: K3sRocketMqResilienceTopic
             - name: PRODUCER_MESSAGE_COUNT
               value: "10"
             - name: PRODUCER_BATCH_PRINT_EVERY

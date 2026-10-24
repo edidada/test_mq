@@ -1,0 +1,46 @@
+name: K8s MQ Manifest Check
+
+on:
+  push:
+    branches: [rabbitmq]
+    paths:
+      - "k8s/streaming/**"
+      - "k8s/rocketmq/**"
+      - "rabbitmq/k8s/**"
+      - ".github/workflows/streaming-mq-manifests.yml"
+  pull_request:
+    branches: [rabbitmq]
+    paths:
+      - "k8s/streaming/**"
+      - "k8s/rocketmq/**"
+      - "rabbitmq/k8s/**"
+      - ".github/workflows/streaming-mq-manifests.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse Kubernetes manifests
+        run: |
+          python -m pip install --quiet pyyaml
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          manifests = [
+              *Path("k8s/streaming").glob("*.yaml"),
+              *Path("k8s/rocketmq").glob("*.yaml"),
+              *Path("rabbitmq/k8s").glob("*.yaml"),
+          ]
+          for manifest in manifests:
+              documents = list(yaml.safe_load_all(manifest.read_text(encoding="utf-8")))
+              assert all(document is not None for document in documents), manifest
+              print(f"validated {manifest}: {len(documents)} document(s)")
+          PY
+      - name: Check streaming orchestration script
+        run: bash -n k8s/streaming/run-k3s-test.sh
+      - name: Check RocketMQ orchestration script
+        run: bash -n k8s/rocketmq/run-k3s-test.sh
+      - name: Check RabbitMQ orchestration script
+        run: bash -n rabbitmq/k8s/run-k3s-test.sh
