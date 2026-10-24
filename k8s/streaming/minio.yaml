@@ -63,4 +63,3 @@ spec:
     - name: console
       port: 9001
       targetPort: console
----
