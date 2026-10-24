@@ -15,6 +15,11 @@
 #include <amqp.h>
 #include <amqp_tcp_socket.h>
 
+std::string getenv_or_default(const char* name, const char* default_value) {
+    const char* value = std::getenv(name);
+    return value != nullptr && value[0] != '\0' ? value : default_value;
+}
+
 // RabbitMQ 消费者类
 class TrueConsumer {
 private:
@@ -255,7 +260,12 @@ public:
 };
 
 int main(int argc, char* argv[]) {
-    TrueConsumer consumer("localhost", 5672, "guest", "guest");
+    TrueConsumer consumer(
+        getenv_or_default("RABBITMQ_HOST", "localhost"),
+        std::atoi(getenv_or_default("RABBITMQ_PORT", "5672").c_str()),
+        getenv_or_default("RABBITMQ_USERNAME", "guest"),
+        getenv_or_default("RABBITMQ_PASSWORD", "guest")
+    );
     
     try {
         consumer.connect();

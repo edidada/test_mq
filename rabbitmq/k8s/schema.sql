@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS processed_messages (
+    message_id VARCHAR(128) PRIMARY KEY,
+    priority VARCHAR(16) NOT NULL,
+    body TEXT NOT NULL,
+    processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

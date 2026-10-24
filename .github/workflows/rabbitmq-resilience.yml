@@ -1,0 +1,40 @@
+name: RabbitMQ Resilience Simulation
+
+on:
+  push:
+    branches: [rabbitmq]
+    paths:
+      - "rabbitmq/python/**"
+      - "rabbitmq/java/**"
+      - ".github/workflows/rabbitmq-resilience.yml"
+  pull_request:
+    branches: [rabbitmq]
+    paths:
+      - "rabbitmq/python/**"
+      - "rabbitmq/java/**"
+      - ".github/workflows/rabbitmq-resilience.yml"
+
+jobs:
+  python-simulation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Run local resilience simulation
+        run: python rabbitmq/python/demo.py
+      - name: Check real-client syntax
+        run: python -m py_compile rabbitmq/python/true_producer.py rabbitmq/python/true_consumer.py
+
+  java-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Build RabbitMQ Java module
+        run: mvn --batch-mode --file rabbitmq/java/pom.xml verify

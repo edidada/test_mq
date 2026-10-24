@@ -2,6 +2,8 @@
 
 本目录提供 Java、Python、C++ 三套 RabbitMQ 生产者/消费者，以及可直接运行的故障演练。
 
+K3s 隔离故障演练见 [`k8s/README.md`](k8s/README.md)，2026-10-24 的实际集群验证记录见 [`k8s/测试报告-2026-10-24.md`](k8s/测试报告-2026-10-24.md)。
+
 | 目标 | 实现 |
 | --- | --- |
 | 消息积压 | 持久化优先级队列；critical 消息优先；可启动多个消费者扩容 |
@@ -19,7 +21,7 @@
 ```bash
 sudo apt update
 sudo apt install -y rabbitmq-server mysql-server librabbitmq-dev \
-  python3-pika python3-mysql.connector cmake g++
+  python3-pika python3-pymysql cmake g++
 sudo systemctl enable --now rabbitmq-server mysql
 ```
 

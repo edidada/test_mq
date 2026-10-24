@@ -80,12 +80,12 @@ jobs:
     - name: Test Consumer
       run: |
         echo "Running C++ consumer..."
-        timeout 30 ${{github.workspace}}/rabbitmq/cpp/build/true_consumer || true
+        timeout 30 ${{github.workspace}}/rabbitmq/cpp/build/true_consumer
       working-directory: ${{github.workspace}}
 
     - name: Verify RabbitMQ Management API
       run: |
-        echo "Checking RabbitMQ management API..."
-        curl -u ${{ env.RABBITMQ_USERNAME }}:${{ env.RABBITMQ_PASSWORD }} \
+        message_count=$(curl --fail --silent -u ${{ env.RABBITMQ_USERNAME }}:${{ env.RABBITMQ_PASSWORD }} \
           http://localhost:15672/api/queues/%2F/test_queue \
-          | jq -r '.messages'
+          | jq -r '.messages')
+        test "$message_count" -eq 0

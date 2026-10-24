@@ -6,6 +6,8 @@ wsl bash -c "sudo apt update && sudo apt install -y librabbitmq-dev"
 ## 环境说明
 本项目使用 RocketMQ 4.9.7 在 WSL Ubuntu 24.04 上进行实际操作演示。
 
+K3s 隔离部署与 Java 端到端验证见 [`k8s/rocketmq/README.md`](k8s/rocketmq/README.md)，实际集群测试记录见 [`k8s/rocketmq/测试报告-2026-10-24.md`](k8s/rocketmq/测试报告-2026-10-24.md)。
+
 ## 快速开始
 ### 启动 RocketMQ
 进入 WSL Ubuntu 环境，执行以下命令：

@@ -66,6 +66,14 @@ public class ConfigLoader {
      * @return 配置值
      */
     public String getString(String key, String defaultValue) {
+        String systemValue = System.getProperty(key);
+        if (systemValue != null && !systemValue.trim().isEmpty()) {
+            return systemValue.trim();
+        }
+        String environmentValue = System.getenv(key.toUpperCase().replace('.', '_').replace('-', '_'));
+        if (environmentValue != null && !environmentValue.trim().isEmpty()) {
+            return environmentValue.trim();
+        }
         return properties.getProperty(key, defaultValue);
     }
 
@@ -89,7 +97,7 @@ public class ConfigLoader {
      * @return 配置值
      */
     public int getInt(String key, int defaultValue) {
-        String value = properties.getProperty(key);
+        String value = getString(key, null);
         if (value == null || value.trim().isEmpty()) {
             return defaultValue;
         }
@@ -107,7 +115,7 @@ public class ConfigLoader {
      * @return 配置值
      */
     public int getInt(String key) {
-        String value = properties.getProperty(key);
+        String value = getString(key, null);
         if (value == null || value.trim().isEmpty()) {
             throw new RuntimeException("Required property '" + key + "' not found");
         }
@@ -126,7 +134,7 @@ public class ConfigLoader {
      * @return 配置值
      */
     public boolean getBoolean(String key, boolean defaultValue) {
-        String value = properties.getProperty(key);
+        String value = getString(key, null);
         if (value == null || value.trim().isEmpty()) {
             return defaultValue;
         }
@@ -139,7 +147,7 @@ public class ConfigLoader {
      * @return 配置值
      */
     public boolean getBoolean(String key) {
-        String value = properties.getProperty(key);
+        String value = getString(key, null);
         if (value == null || value.trim().isEmpty()) {
             throw new RuntimeException("Required property '" + key + "' not found");
         }

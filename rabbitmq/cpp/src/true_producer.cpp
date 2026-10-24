@@ -41,6 +41,11 @@ struct Message {
     }
 };
 
+std::string getenv_or_default(const char* name, const char* default_value) {
+    const char* value = std::getenv(name);
+    return value != nullptr && value[0] != '\0' ? value : default_value;
+}
+
 // RabbitMQ 生产者类
 class TrueProducer {
 private:
@@ -250,7 +255,12 @@ std::vector<Message> build_messages(const std::string& prefix, int count, int cr
 }
 
 int main(int argc, char* argv[]) {
-    TrueProducer producer("localhost", 5672, "guest", "guest");
+    TrueProducer producer(
+        getenv_or_default("RABBITMQ_HOST", "localhost"),
+        std::atoi(getenv_or_default("RABBITMQ_PORT", "5672").c_str()),
+        getenv_or_default("RABBITMQ_USERNAME", "guest"),
+        getenv_or_default("RABBITMQ_PASSWORD", "guest")
+    );
     
     try {
         producer.connect();

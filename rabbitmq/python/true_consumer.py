@@ -7,9 +7,8 @@ import os
 import time
 from pathlib import Path
 
-import mysql.connector
+import pymysql
 import pika
-from mysql.connector import Error as MySQLError
 from pika.exceptions import AMQPError
 
 from true_producer import JsonlStore, Message
@@ -23,15 +22,14 @@ class MySQLRepository:
             "user": os.getenv("MYSQL_USER", "mq_demo"),
             "password": os.getenv("MYSQL_PASSWORD", "mq_demo_dev_password"),
             "database": os.getenv("MYSQL_DATABASE", "mq_demo"),
-            "connection_timeout": 3,
+            "connect_timeout": 3,
             # The local WSL MySQL instance is reached over loopback. Explicitly
             # disable TLS so the distro's older connector remains compatible
             # with Python 3.12, which no longer exposes ssl.wrap_socket.
-            "ssl_disabled": True,
         }
 
     def persist(self, message: Message) -> None:
-        connection = mysql.connector.connect(**self.config)
+        connection = pymysql.connect(**self.config)
         try:
             cursor = connection.cursor()
             cursor.execute(
@@ -49,13 +47,13 @@ class MySQLRepository:
     def persist_with_retry(self, message: Message) -> None:
         attempts = int(os.getenv("MYSQL_RETRY_ATTEMPTS", "3"))
         delay_seconds = float(os.getenv("MYSQL_RETRY_DELAY_SECONDS", "0.2"))
-        last_error: MySQLError | None = None
+        last_error: pymysql.MySQLError | None = None
 
         for attempt in range(1, attempts + 1):
             try:
                 self.persist(message)
                 return
-            except MySQLError as exc:
+            except pymysql.MySQLError as exc:
                 last_error = exc
                 if attempt < attempts:
                     print(f"[consumer] MySQL retry {attempt}/{attempts}: {message.message_id}")
@@ -134,7 +132,7 @@ class TrueConsumer:
                 self.repository.persist_with_retry(message)
                 self.persisted += 1
                 print(f"[consumer] persisted: {message.message_id}")
-            except MySQLError as exc:
+            except pymysql.MySQLError as exc:
                 # The local append is durable before ACK, so the message can be
                 # compensated after MySQL is restored without redelivery storms.
                 self.pending_db.append(message)
@@ -159,7 +157,7 @@ class TrueConsumer:
                 self.repository.persist_with_retry(message)
                 self.persisted += 1
                 print(f"[consumer] persisted pending message: {message.message_id}")
-            except MySQLError as exc:
+            except pymysql.MySQLError as exc:
                 remaining.extend(stored[index:])
                 print(f"[consumer] MySQL still unavailable; replay paused ({exc!r})")
                 break

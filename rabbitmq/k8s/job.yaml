@@ -1,0 +1,98 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: resilience-test
+  namespace: mq-resilience-test
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: resilience-test
+          image: python:3.13-slim
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              pip install --disable-pip-version-check --no-cache-dir -r /app/requirements.txt
+              python /app/true_producer.py --count 3 --prefix normal
+              python /app/true_consumer.py --count 3
+
+              echo PHASE:MYSQL_DOWN
+              sleep 30
+              python /app/true_producer.py --count 2 --prefix mysql-down
+              python /app/true_consumer.py --count 2
+
+              echo PHASE:MYSQL_UP
+              sleep 30
+              python /app/true_consumer.py --flush-pending-only
+
+              echo PHASE:RABBITMQ_DOWN
+              sleep 30
+              python /app/true_producer.py --count 2 --prefix mq-down
+
+              echo PHASE:RABBITMQ_UP
+              # RabbitMQ startup includes Erlang boot and readiness checks.
+              sleep 60
+              python /app/true_producer.py --replay-only
+              python /app/true_consumer.py --count 2
+              python /app/verify.py
+          env:
+            - name: RABBITMQ_HOST
+              value: rabbitmq
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_QUEUE
+              value: mq-resilience
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mq-resilience-credentials
+                  key: rabbitmq-user
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mq-resilience-credentials
+                  key: rabbitmq-password
+            - name: MYSQL_HOST
+              value: mysql
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_DATABASE
+              value: mqresilience
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mq-resilience-credentials
+                  key: mysql-user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mq-resilience-credentials
+                  key: mysql-password
+            - name: MQ_DEMO_RUNTIME_DIR
+              value: /work/runtime
+            - name: MYSQL_RETRY_DELAY_SECONDS
+              value: "0.1"
+          volumeMounts:
+            - name: app
+              mountPath: /app
+              readOnly: true
+            - name: work
+              mountPath: /work
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: app
+          configMap:
+            name: mq-resilience-app
+        - name: work
+          emptyDir: {}

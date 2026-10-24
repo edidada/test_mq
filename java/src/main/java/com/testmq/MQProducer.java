@@ -29,6 +29,7 @@ public class MQProducer {
         producer.start();
 
         logger.info("=== 开始发送消息 ===");
+        int failures = 0;
         for (int i = 1; i <= messageCount; i++) {
             try {
                 Message msg = new Message(
@@ -41,6 +42,7 @@ public class MQProducer {
                     logger.info("已发送 {} 条消息", i);
                 }
             } catch (Exception e) {
+                failures++;
                 logger.error("发送失败：{}", e.getMessage(), e);
             }
         }
@@ -48,5 +50,8 @@ public class MQProducer {
 
         producer.shutdown();
         logger.info("Producer shutdown complete");
+        if (failures > 0) {
+            throw new IllegalStateException("Failed to send " + failures + " RocketMQ messages");
+        }
     }
 }

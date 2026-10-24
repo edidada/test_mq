@@ -1,0 +1,83 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rocketmq-java-e2e
+  namespace: rocketmq-resilience-test
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: java-e2e
+          image: maven:3.9.9-eclipse-temurin-17
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mkdir -p /work/src/main/java/com/testmq /work/src/main/resources
+              cp /source/pom.xml /work/pom.xml
+              cp /source/ConfigLoader.java /work/src/main/java/com/testmq/
+              cp /source/MQProducer.java /work/src/main/java/com/testmq/
+              cp /source/MQConsumer.java /work/src/main/java/com/testmq/
+              cp /source/application.properties /work/src/main/resources/
+              cp /source/log4j2.xml /work/src/main/resources/
+              cd /work
+              mvn --batch-mode -Dmaven.test.skip=true package dependency:copy-dependencies -DincludeScope=runtime
+              java -cp 'target/rocketmq-demo-1.0.0.jar:target/dependency/*' com.testmq.MQConsumer > /work/consumer.log 2>&1 &
+              consumer_pid=$!
+              stop_consumer() {
+                kill "$consumer_pid" 2>/dev/null || true
+                sleep 3
+                kill -9 "$consumer_pid" 2>/dev/null || true
+                wait "$consumer_pid" 2>/dev/null || true
+              }
+              trap stop_consumer EXIT
+              sleep 10
+              java -cp 'target/rocketmq-demo-1.0.0.jar:target/dependency/*' com.testmq.MQProducer
+              for attempt in $(seq 1 30); do
+                if grep -q '已消费 10 条消息' /work/consumer.log; then
+                  echo 'RocketMQ Java end-to-end verification passed: 10 messages consumed'
+                  exit 0
+                fi
+                sleep 2
+              done
+              cat /work/consumer.log >&2
+              echo 'consumer did not confirm all 10 messages' >&2
+              exit 1
+          env:
+            - name: ROCKETMQ_NAMESRV_ADDR
+              value: rocketmq-namesrv:9876
+            - name: ROCKETMQ_PRODUCER_GROUP
+              value: k3s_rocketmq_producer
+            - name: ROCKETMQ_CONSUMER_GROUP
+              value: k3s_rocketmq_consumer
+            - name: ROCKETMQ_TOPIC_NAME
+              value: K3sRocketMqTopic
+            - name: PRODUCER_MESSAGE_COUNT
+              value: "10"
+            - name: PRODUCER_BATCH_PRINT_EVERY
+              value: "1"
+            - name: CONSUMER_PRINT_EVERY
+              value: "1"
+            - name: CONSUMER_PROCESS_DELAY_MS
+              value: "1"
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: work
+              mountPath: /work
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: source
+          configMap:
+            name: rocketmq-java-source
+        - name: work
+          emptyDir: {}
